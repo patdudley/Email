@@ -30,7 +30,7 @@ const aiSummaries:Record<number,string>={
 function suggestedWork(message:Mail):Work{return message.work??{title:message.subject,next:"Review this email",instruction:`Use the full email from ${message.sender} as context. Help me decide and complete the next action, but ask before sending anything.`}}
 
 export default function Home(){
-  const [view,setView]=useState<"mail"|"tasks">("mail");
+  const [view,setView]=useState<"mail"|"tasks"|"connectors">("mail");
   const [folder,setFolder]=useState("Inbox");
   const [openId,setOpenId]=useState<number|null>(null);
   const [converted,setConverted]=useState<number[]>([1,2,3]);
@@ -44,14 +44,18 @@ export default function Home(){
   const [toast,setToast]=useState("");
   const [answer,setAnswer]=useState<{text:string;ids:number[]}|null>(null);
   const [selected,setSelected]=useState<number[]>([]);
-  const [locations,setLocations]=useState<Record<number,string>>({6:"Archive"});
+  const [customFolders,setCustomFolders]=useState(["Travel","Receipts"]);
+  const [manageFolders,setManageFolders]=useState(false);
+  const [locations,setLocations]=useState<Record<number,string>>({6:"Receipts",7:"Travel",8:"Travel"});
+  const [connected,setConnected]=useState<Record<string,boolean>>({"Google Drive":true,"Google Calendar":true});
   const list=useMemo(()=>{
     if(folder==="Starred")return mail.filter(m=>[1,3,7].includes(m.id)&&!locations[m.id]);
     if(folder==="Snoozed")return mail.filter(m=>m.id===4&&!locations[m.id]);
     if(["Archive","Spam","Trash"].includes(folder))return mail.filter(m=>locations[m.id]===folder);
+    if(customFolders.includes(folder))return mail.filter(m=>locations[m.id]===folder);
     if(["Sent","Drafts"].includes(folder))return [];
     return mail.filter(m=>!locations[m.id]);
-  },[folder,locations]);
+  },[folder,locations,customFolders]);
   const opened=mail.find(m=>m.id===openId);
   const tasks=mail.filter(m=>converted.includes(m.id));
   const task=mail.find(m=>m.id===taskId)??tasks[0];
@@ -61,12 +65,27 @@ export default function Home(){
   function chooseFolder(next:string){setView("mail");setFolder(next);setOpenId(null);setSelected([])}
   function toggleSelected(id:number){setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id])}
   function toggleAll(){const ids=list.map(message=>message.id);setSelected(current=>ids.length>0&&ids.every(id=>current.includes(id))?current.filter(id=>!ids.includes(id)):[...new Set([...current,...ids])])}
-  function moveSelected(destination:"Archive"|"Spam"|"Trash"){
+  function moveSelected(destination:string){
     if(!selected.length)return;
     const total=selected.length;
     setLocations(current=>({...current,...Object.fromEntries(selected.map(id=>[id,destination]))}));
     setSelected([]);
     notify(`${total} email${total===1?"":"s"} moved to ${destination}`);
+  }
+  function addFolder(){
+    const name=window.prompt("Name your new folder")?.trim();
+    if(!name)return;
+    if(customFolders.some(item=>item.toLowerCase()===name.toLowerCase())){notify("That folder already exists");return}
+    setCustomFolders(current=>[...current,name]);
+    chooseFolder(name);
+    notify(`${name} folder created`);
+  }
+  function deleteFolder(name:string){
+    if(!window.confirm(`Delete the ${name} folder? Emails in it will return to Inbox.`))return;
+    setCustomFolders(current=>current.filter(item=>item!==name));
+    setLocations(current=>Object.fromEntries(Object.entries(current).filter(([,destination])=>destination!==name)) as Record<number,string>);
+    if(folder===name)chooseFolder("Inbox");
+    notify(`${name} folder deleted`);
   }
   function askEmail(e:React.FormEvent){
     e.preventDefault();
@@ -89,9 +108,13 @@ export default function Home(){
         <button className={view==="mail"&&folder==="Snoozed"?"active":""} onClick={()=>chooseFolder("Snoozed")}><span>◷</span>Snoozed</button>
         <button className={view==="mail"&&folder==="Sent"?"active":""} onClick={()=>chooseFolder("Sent")}><span>➤</span>Sent</button>
         <button className={view==="mail"&&folder==="Drafts"?"active":""} onClick={()=>chooseFolder("Drafts")}><span>▱</span>Drafts<b>2</b></button>
+        <div className="folder-heading"><span>Folders</span><div><button aria-label="Add folder" onClick={addFolder}>＋</button><button className={manageFolders?"active":""} onClick={()=>setManageFolders(value=>!value)}>{manageFolders?"Done":"Manage"}</button></div></div>
+        {customFolders.map(name=><div className="folder-item" key={name}><button className={view==="mail"&&folder===name?"active":""} onClick={()=>chooseFolder(name)}><span>▰</span>{name}<b>{mail.filter(message=>locations[message.id]===name).length}</b></button>{manageFolders&&<button className="delete-folder" aria-label={`Delete ${name} folder`} onClick={()=>deleteFolder(name)}>×</button>}</div>)}
         <button className={view==="mail"&&folder==="Archive"?"active":""} onClick={()=>chooseFolder("Archive")}><span>▣</span>Archive</button>
         <button className={view==="mail"&&folder==="Spam"?"active":""} onClick={()=>chooseFolder("Spam")}><span>!</span>Spam</button>
         <button className={view==="mail"&&folder==="Trash"?"active":""} onClick={()=>chooseFolder("Trash")}><span>♲</span>Trash</button>
+        <div className="nav-divider"/>
+        <button className={view==="connectors"?"active":""} onClick={()=>{setView("connectors");setOpenId(null);setSelected([])}}><span>⌘</span>Connectors</button>
       </nav>
       <div className="account"><span>M</span><div><b>pat@gmail.com</b><small>Connected</small></div><i>✓</i></div>
     </aside>
@@ -106,7 +129,7 @@ export default function Home(){
       {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>{setView("mail");setOpenId(id);setAnswer(null)}}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
 
       {view==="mail"&&!opened&&<section className="inbox">
-        <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>notify("Inbox refreshed")}>↻</button><span/><small>{list.length?`1–${list.length}`:"0"}</small><button>‹</button><button>›</button></>}</div>
+        <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong>{customFolders.length>0&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>notify("Inbox refreshed")}>↻</button><span/><small>{list.length?`1–${list.length}`:"0"}</small><button>‹</button><button>›</button></>}</div>
         <div className="mail-list">{list.map(m=><article key={m.id} className={`${m.unread?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>setOpenId(m.id)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[m.id]}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
       </section>}
 
@@ -129,6 +152,14 @@ export default function Home(){
           <div className="agent"><header><span>✦</span><div><b>Resolve</b><small>Knows the email and context above</small></div></header><p>I can draft replies, find attachments, monitor the thread, and keep this task moving. I’ll ask before sending anything.</p><form onSubmit={e=>{e.preventDefault();if(prompt.trim()){notify("Instruction added");setPrompt("")}}}><input value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Tell Resolve what to do…"/><button>↑</button></form></div></section>
         </div>
       </section>}
+
+      {view==="connectors"&&<section className="connectors"><header><p>CONTEXT SOURCES</p><h1>Connect your work</h1><span>Give Resolve permission-aware context from the tools you already use. You control each connection.</span></header><div className="connector-grid">{[
+        {name:"Google Drive",mark:"D",tone:"drive",description:"Search documents, PDFs, and files alongside your email."},
+        {name:"Google Calendar",mark:"31",tone:"gcal",description:"Understand meetings, travel, availability, and upcoming commitments."},
+        {name:"Slack",mark:"S",tone:"slack",description:"Find decisions and conversations across your permitted channels."},
+        {name:"Granola",mark:"G",tone:"granola",description:"Use meeting notes, transcripts, decisions, and action items as context."},
+        {name:"Glean",mark:"⌕",tone:"glean",description:"Search permission-aware company knowledge from one place."},
+      ].map(item=><article key={item.name}><div className={`connector-mark ${item.tone}`}>{item.mark}</div><div><h2>{item.name}</h2><p>{item.description}</p></div><button className={connected[item.name]?"connected":""} onClick={()=>{setConnected(current=>({...current,[item.name]:!current[item.name]}));notify(connected[item.name]?`${item.name} disconnected`:`${item.name} connection started`)}}>{connected[item.name]?"✓ Connected":"Connect"}</button></article>)}</div><footer><span>🔒</span><p><b>Your permissions stay intact.</b> Resolve only searches content your connected account can already access.</p></footer></section>}
     </section>
 
     {compose&&<div className="compose-window"><header><b>New message</b><button onClick={()=>setCompose(false)}>×</button></header><label>To <input autoFocus/></label><label>Subject <input/></label><textarea/><footer><button onClick={()=>{setCompose(false);notify("Message sent")}}>Send</button></footer></div>}
