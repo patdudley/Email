@@ -38,24 +38,33 @@ export default function Home(){
   const [search,setSearch]=useState("");
   const [compose,setCompose]=useState(false);
   const [replying,setReplying]=useState(false);
+  const [replyMode,setReplyMode]=useState<"reply"|"replyAll"|"forward">("reply");
   const [reply,setReply]=useState("");
+  const [forwardTo,setForwardTo]=useState("");
+  const [composeTo,setComposeTo]=useState("");
+  const [composeCc,setComposeCc]=useState("");
+  const [composeSubject,setComposeSubject]=useState("");
+  const [composeBody,setComposeBody]=useState("");
+  const [showCc,setShowCc]=useState(false);
   const [contexts,setContexts]=useState<Record<number,string>>({});
   const [prompt,setPrompt]=useState("");
   const [toast,setToast]=useState("");
   const [answer,setAnswer]=useState<{text:string;ids:number[]}|null>(null);
   const [selected,setSelected]=useState<number[]>([]);
+  const [starred,setStarred]=useState<number[]>([1,3,7]);
+  const [unread,setUnread]=useState<number[]>(mail.filter(message=>message.unread).map(message=>message.id));
   const [customFolders,setCustomFolders]=useState<string[]>([]);
   const [manageFolders,setManageFolders]=useState(false);
   const [locations,setLocations]=useState<Record<number,string>>({6:"Archive"});
-  const [connected,setConnected]=useState<Record<string,boolean>>({"Google Drive":true,"Google Calendar":true});
+  const [connected,setConnected]=useState<Record<string,boolean>>({});
   const list=useMemo(()=>{
-    if(folder==="Starred")return mail.filter(m=>[1,3,7].includes(m.id)&&!locations[m.id]);
-    if(folder==="Snoozed")return mail.filter(m=>m.id===4&&!locations[m.id]);
+    if(folder==="Starred")return mail.filter(m=>starred.includes(m.id)&&!locations[m.id]);
+    if(folder==="Snoozed")return mail.filter(m=>locations[m.id]==="Snoozed");
     if(["Archive","Spam","Trash"].includes(folder))return mail.filter(m=>locations[m.id]===folder);
     if(customFolders.includes(folder))return mail.filter(m=>locations[m.id]===folder);
     if(["Sent","Drafts"].includes(folder))return [];
     return mail.filter(m=>!locations[m.id]);
-  },[folder,locations,customFolders]);
+  },[folder,locations,customFolders,starred]);
   const opened=mail.find(m=>m.id===openId);
   const tasks=mail.filter(m=>converted.includes(m.id));
   const task=mail.find(m=>m.id===taskId)??tasks[0];
@@ -64,6 +73,7 @@ export default function Home(){
   function convert(message:Mail){if(!converted.includes(message.id))setConverted(v=>[message.id,...v]);setTaskId(message.id);setView("tasks");setOpenId(null);notify("Task created with this email as context")}
   function chooseFolder(next:string){setView("mail");setFolder(next);setOpenId(null);setSelected([])}
   function toggleSelected(id:number){setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id])}
+  function toggleStar(id:number){setStarred(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id])}
   function toggleAll(){const ids=list.map(message=>message.id);setSelected(current=>ids.length>0&&ids.every(id=>current.includes(id))?current.filter(id=>!ids.includes(id)):[...new Set([...current,...ids])])}
   function moveSelected(destination:string){
     if(!selected.length)return;
@@ -72,6 +82,19 @@ export default function Home(){
     setSelected([]);
     notify(`${total} email${total===1?"":"s"} moved to ${destination}`);
   }
+  function moveOpen(destination:string){if(!opened)return;setLocations(current=>({...current,[opened.id]:destination}));setOpenId(null);setReplying(false);notify(`Email moved to ${destination}`)}
+  function restoreOpen(){if(!opened)return;setLocations(current=>{const next={...current};delete next[opened.id];return next});setOpenId(null);notify("Email moved to Inbox")}
+  function toggleSelectedUnread(){const shouldMarkUnread=!selected.every(id=>unread.includes(id));setUnread(current=>shouldMarkUnread?[...new Set([...current,...selected])]:current.filter(id=>!selected.includes(id)));notify(`${selected.length} email${selected.length===1?"":"s"} marked ${shouldMarkUnread?"unread":"read"}`)}
+  function toggleSelectedStar(){const shouldStar=!selected.every(id=>starred.includes(id));setStarred(current=>shouldStar?[...new Set([...current,...selected])]:current.filter(id=>!selected.includes(id)));notify(`${selected.length} email${selected.length===1?"":"s"} ${shouldStar?"starred":"unstarred"}`)}
+  function startReply(mode:"reply"|"replyAll"|"forward"){
+    if(!opened)return;
+    setReplyMode(mode);
+    setForwardTo("");
+    setReply(mode==="forward"?`\n\n---------- Forwarded message ----------\nFrom: ${opened.sender} <${opened.email}>\nDate: ${opened.date}\nSubject: ${opened.subject}\n\n${opened.body.join("\n\n")}`:"");
+    setReplying(true);
+  }
+  function sendReply(){if(replyMode==="forward"&&!forwardTo.trim()){notify("Add a recipient before forwarding");return}setReplying(false);setReply("");setForwardTo("");notify(replyMode==="forward"?"Email forwarded":"Reply sent")}
+  function sendCompose(){if(!composeTo.trim()){notify("Add a recipient before sending");return}setCompose(false);setComposeTo("");setComposeCc("");setComposeSubject("");setComposeBody("");setShowCc(false);notify("Message sent")}
   function addFolder(){
     const name=window.prompt("Name your new folder")?.trim();
     if(!name)return;
@@ -107,7 +130,7 @@ export default function Home(){
         <button className={view==="mail"&&folder==="Starred"?"active":""} onClick={()=>chooseFolder("Starred")}><span>☆</span>Starred</button>
         <button className={view==="mail"&&folder==="Snoozed"?"active":""} onClick={()=>chooseFolder("Snoozed")}><span>◷</span>Snoozed</button>
         <button className={view==="mail"&&folder==="Sent"?"active":""} onClick={()=>chooseFolder("Sent")}><span>➤</span>Sent</button>
-        <button className={view==="mail"&&folder==="Drafts"?"active":""} onClick={()=>chooseFolder("Drafts")}><span>▱</span>Drafts<b>2</b></button>
+        <button className={view==="mail"&&folder==="Drafts"?"active":""} onClick={()=>chooseFolder("Drafts")}><span>▱</span>Drafts</button>
         <div className="folder-heading"><span>Folders</span><div><button aria-label="Add folder" onClick={addFolder}>＋</button>{customFolders.length>0&&<button className={manageFolders?"active":""} onClick={()=>setManageFolders(value=>!value)}>{manageFolders?"Done":"Manage"}</button>}</div></div>
         {customFolders.map(name=><div className="folder-item" key={name}><button className={view==="mail"&&folder===name?"active":""} onClick={()=>chooseFolder(name)}><span>▰</span>{name}<b>{mail.filter(message=>locations[message.id]===name).length}</b></button>{manageFolders&&<button className="delete-folder" aria-label={`Delete ${name} folder`} onClick={()=>deleteFolder(name)}>×</button>}</div>)}
         <button className={view==="mail"&&folder==="Archive"?"active":""} onClick={()=>chooseFolder("Archive")}><span>▣</span>Archive</button>
@@ -115,7 +138,7 @@ export default function Home(){
         <button className={view==="mail"&&folder==="Trash"?"active":""} onClick={()=>chooseFolder("Trash")}><span>♲</span>Trash</button>
       </nav>
       <button className={`connectors-link ${view==="connectors"?"active":""}`} onClick={()=>{setView("connectors");setOpenId(null);setSelected([])}}><span>⌘</span>Connectors</button>
-      <div className="account"><span>M</span><div><b>pat@gmail.com</b><small>Connected</small></div><i>✓</i></div>
+      <div className="account"><span>M</span><div><b>Gmail not connected</b><small>Demo data</small></div><i>!</i></div>
     </aside>
 
     <section className="main">
@@ -128,18 +151,18 @@ export default function Home(){
       {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>{setView("mail");setOpenId(id);setAnswer(null)}}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
 
       {view==="mail"&&!opened&&<section className="inbox">
-        <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong>{customFolders.length>0&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>notify("Inbox refreshed")}>↻</button><span/><small>{list.length?`1–${list.length}`:"0"}</small><button>‹</button><button>›</button></>}</div>
-        <div className="mail-list">{list.map(m=><article key={m.id} className={`${m.unread?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>setOpenId(m.id)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[m.id]}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
+        <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={toggleSelectedStar}>☆ Star</button><button className="bulk-action" onClick={toggleSelectedUnread}>○ Read/unread</button>{customFolders.length>0&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>notify("Inbox refreshed")}>↻</button><span/><small>{list.length?`1–${list.length}`:"0"}</small><button>‹</button><button>›</button></>}</div>
+        <div className="mail-list">{list.map(m=><article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>{setOpenId(m.id);setUnread(current=>current.filter(id=>id!==m.id))}}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[m.id]}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
       </section>}
 
       {view==="mail"&&opened&&<section className="reader">
-        <div className="reader-tools"><button onClick={()=>{setOpenId(null);setReplying(false)}}>←</button><button>▣</button><button>♲</button><button>◷</button><span/><button className="task-button" onClick={()=>convert(opened)}>{converted.includes(opened.id)?"Open task":"＋ Add to tasks"}</button></div>
+        <div className="reader-tools"><button title="Back" aria-label="Back to message list" onClick={()=>{setOpenId(null);setReplying(false)}}>←</button>{locations[opened.id]?<button title="Move to Inbox" aria-label="Move to Inbox" onClick={restoreOpen}>↥</button>:<button title="Archive" aria-label="Archive" onClick={()=>moveOpen("Archive")}>▣</button>}<button title="Report spam" aria-label="Report spam" onClick={()=>moveOpen("Spam")}>!</button><button title="Move to Trash" aria-label="Move to Trash" onClick={()=>moveOpen("Trash")}>♲</button><button title="Snooze" aria-label="Snooze" onClick={()=>moveOpen("Snoozed")}>◷</button><button title="Mark unread" aria-label="Mark unread" onClick={()=>{setUnread(current=>[...new Set([...current,opened.id])]);setOpenId(null);notify("Email marked unread")}}>○</button><button title={starred.includes(opened.id)?"Unstar":"Star"} aria-label={starred.includes(opened.id)?"Unstar":"Star"} className={starred.includes(opened.id)?"star-active":""} onClick={()=>toggleStar(opened.id)}>{starred.includes(opened.id)?"★":"☆"}</button><span/><button className="task-button" onClick={()=>convert(opened)}>{converted.includes(opened.id)?"Open task":"＋ Add to tasks"}</button></div>
         <div className="message">
           <h1>{opened.subject}</h1>
           <div className="sender"><span className={`initials ${opened.tone}`}>{opened.initials}</span><div><b>{opened.sender}</b><p>{opened.email} · to me</p></div><time>{opened.date}</time></div>
           <div className="copy">{opened.body.map((p,i)=><p key={i}>{p.split("\n").map((line,j)=><span key={j}>{line}{j<p.split("\n").length-1&&<br/>}</span>)}</p>)}</div>
-          {opened.attachment&&<button className="attachment"><span>PDF</span><div><b>{opened.attachment}</b><small>248 KB</small></div><strong>↓</strong></button>}
-          {!replying?<div className="reply-actions"><button onClick={()=>setReplying(true)}>↩ Reply</button><button onClick={()=>{setReply(`Hi ${opened.sender.split(" ")[0]},\n\nThanks for the update. I’ll take care of this and follow up shortly.\n\nBest,\nPat`);setReplying(true)}}>✦ Draft reply</button></div>:<div className="reply-box"><div>To <b>{opened.sender}</b></div><textarea autoFocus value={reply} onChange={e=>setReply(e.target.value)}/><footer><button className="send" onClick={()=>{setReplying(false);setReply("");notify("Reply sent")}}>Send</button><span/><button onClick={()=>setReplying(false)}>Delete</button></footer></div>}
+          {opened.attachment&&<button className="attachment" onClick={()=>notify(`${opened.attachment} downloaded`)}><span>PDF</span><div><b>{opened.attachment}</b><small>248 KB</small></div><strong>↓</strong></button>}
+          {!replying?<div className="reply-actions"><button onClick={()=>startReply("reply")}>↩ Reply</button><button onClick={()=>startReply("replyAll")}>↩ Reply all</button><button onClick={()=>startReply("forward")}>→ Forward</button><button onClick={()=>{setReplyMode("reply");setReply(`Hi ${opened.sender.split(" ")[0]},\n\nThanks for the update. I’ll take care of this and follow up shortly.\n\nBest,\nPat`);setReplying(true)}}>✦ Draft reply</button></div>:<div className="reply-box"><div>{replyMode==="forward"?<>To <input aria-label="Forward recipient" autoFocus value={forwardTo} onChange={e=>setForwardTo(e.target.value)} placeholder="Recipient email"/></>:<>To <b>{opened.sender}</b>{replyMode==="replyAll"&&<span> · all recipients</span>}</>}</div><textarea autoFocus={replyMode!=="forward"} value={reply} onChange={e=>setReply(e.target.value)}/><footer><button className="send" onClick={sendReply}>{replyMode==="forward"?"Forward":"Send"}</button><button onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button onClick={()=>{setReplying(false);setReply("")}}>Discard</button></footer></div>}
         </div>
       </section>}
 
@@ -153,6 +176,7 @@ export default function Home(){
       </section>}
 
       {view==="connectors"&&<section className="connectors"><header><p>CONTEXT SOURCES</p><h1>Connect your work</h1><span>Give Resolve permission-aware context from the tools you already use. You control each connection.</span></header><div className="connector-grid">{[
+        {name:"Gmail",mark:"M",tone:"gmail",description:"Sync your inbox and enable sending, replying, forwarding, and mailbox actions."},
         {name:"Google Drive",mark:"D",tone:"drive",description:"Search documents, PDFs, and files alongside your email."},
         {name:"Google Calendar",mark:"31",tone:"gcal",description:"Understand meetings, travel, availability, and upcoming commitments."},
         {name:"Slack",mark:"S",tone:"slack",description:"Find decisions and conversations across your permitted channels."},
@@ -161,7 +185,7 @@ export default function Home(){
       ].map(item=><article key={item.name}><div className={`connector-mark ${item.tone}`}>{item.mark}</div><div><h2>{item.name}</h2><p>{item.description}</p></div><button className={connected[item.name]?"connected":""} onClick={()=>{setConnected(current=>({...current,[item.name]:!current[item.name]}));notify(connected[item.name]?`${item.name} disconnected`:`${item.name} connection started`)}}>{connected[item.name]?"✓ Connected":"Connect"}</button></article>)}</div><footer><span>🔒</span><p><b>Your permissions stay intact.</b> Resolve only searches content your connected account can already access.</p></footer></section>}
     </section>
 
-    {compose&&<div className="compose-window"><header><b>New message</b><button onClick={()=>setCompose(false)}>×</button></header><label>To <input autoFocus/></label><label>Subject <input/></label><textarea/><footer><button onClick={()=>{setCompose(false);notify("Message sent")}}>Send</button></footer></div>}
+    {compose&&<div className="compose-window"><header><b>New message</b><button aria-label="Close composer" onClick={()=>setCompose(false)}>×</button></header><label>To <input autoFocus value={composeTo} onChange={e=>setComposeTo(e.target.value)}/><button className="cc-toggle" onClick={()=>setShowCc(value=>!value)}>Cc/Bcc</button></label>{showCc&&<label>Cc <input value={composeCc} onChange={e=>setComposeCc(e.target.value)}/></label>}<label>Subject <input value={composeSubject} onChange={e=>setComposeSubject(e.target.value)}/></label><textarea aria-label="Message body" value={composeBody} onChange={e=>setComposeBody(e.target.value)}/><footer><button onClick={sendCompose}>Send</button><button className="attach-compose" onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button className="discard-compose" onClick={()=>{setCompose(false);setComposeTo("");setComposeCc("");setComposeSubject("");setComposeBody("")}}>Discard</button></footer></div>}
     {toast&&<div className="toast"><span>✓</span>{toast}</div>}
   </main>
 }

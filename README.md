@@ -5,6 +5,7 @@ Resolve is an inbox-first email platform with tasks and AI built directly into e
 ## MVP
 
 - Minimal inbox, reader, compose, and reply experience
+- Reply, reply-all, forward, star, mark unread, snooze, archive, spam, trash, and attachment controls
 - Natural-language AI search for questions such as “What hotel am I staying at in Vegas?”
 - AI summaries on every inbox row for fast scanning
 - Familiar Inbox, Starred, Snoozed, Sent, Drafts, Archive, Spam, and Trash navigation
@@ -15,7 +16,7 @@ Resolve is an inbox-first email platform with tasks and AI built directly into e
 - Responsive desktop and mobile layouts
 - Realistic demonstration data for returns, claims, reimbursements, and billing disputes
 
-This first version is a polished, local-first product prototype. Gmail sync, durable user data, and live AI actions are the next integration phase.
+This first version is a polished, local-first product prototype. It uses demonstration messages and in-memory interactions. Do not connect a personal mailbox until Gmail OAuth, encrypted token storage, Gmail API sync/send routes, webhook or history synchronization, durable user data, and integration tests are implemented.
 
 ## Run locally
 
