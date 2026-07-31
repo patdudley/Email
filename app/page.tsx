@@ -44,9 +44,9 @@ export default function Home(){
   const [toast,setToast]=useState("");
   const [answer,setAnswer]=useState<{text:string;ids:number[]}|null>(null);
   const [selected,setSelected]=useState<number[]>([]);
-  const [customFolders,setCustomFolders]=useState(["Travel","Receipts"]);
+  const [customFolders,setCustomFolders]=useState<string[]>([]);
   const [manageFolders,setManageFolders]=useState(false);
-  const [locations,setLocations]=useState<Record<number,string>>({6:"Receipts",7:"Travel",8:"Travel"});
+  const [locations,setLocations]=useState<Record<number,string>>({6:"Archive"});
   const [connected,setConnected]=useState<Record<string,boolean>>({"Google Drive":true,"Google Calendar":true});
   const list=useMemo(()=>{
     if(folder==="Starred")return mail.filter(m=>[1,3,7].includes(m.id)&&!locations[m.id]);
@@ -108,7 +108,7 @@ export default function Home(){
         <button className={view==="mail"&&folder==="Snoozed"?"active":""} onClick={()=>chooseFolder("Snoozed")}><span>◷</span>Snoozed</button>
         <button className={view==="mail"&&folder==="Sent"?"active":""} onClick={()=>chooseFolder("Sent")}><span>➤</span>Sent</button>
         <button className={view==="mail"&&folder==="Drafts"?"active":""} onClick={()=>chooseFolder("Drafts")}><span>▱</span>Drafts<b>2</b></button>
-        <div className="folder-heading"><span>Folders</span><div><button aria-label="Add folder" onClick={addFolder}>＋</button><button className={manageFolders?"active":""} onClick={()=>setManageFolders(value=>!value)}>{manageFolders?"Done":"Manage"}</button></div></div>
+        <div className="folder-heading"><span>Folders</span><div><button aria-label="Add folder" onClick={addFolder}>＋</button>{customFolders.length>0&&<button className={manageFolders?"active":""} onClick={()=>setManageFolders(value=>!value)}>{manageFolders?"Done":"Manage"}</button>}</div></div>
         {customFolders.map(name=><div className="folder-item" key={name}><button className={view==="mail"&&folder===name?"active":""} onClick={()=>chooseFolder(name)}><span>▰</span>{name}<b>{mail.filter(message=>locations[message.id]===name).length}</b></button>{manageFolders&&<button className="delete-folder" aria-label={`Delete ${name} folder`} onClick={()=>deleteFolder(name)}>×</button>}</div>)}
         <button className={view==="mail"&&folder==="Archive"?"active":""} onClick={()=>chooseFolder("Archive")}><span>▣</span>Archive</button>
         <button className={view==="mail"&&folder==="Spam"?"active":""} onClick={()=>chooseFolder("Spam")}><span>!</span>Spam</button>
