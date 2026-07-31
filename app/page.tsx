@@ -43,19 +43,31 @@ export default function Home(){
   const [prompt,setPrompt]=useState("");
   const [toast,setToast]=useState("");
   const [answer,setAnswer]=useState<{text:string;ids:number[]}|null>(null);
+  const [selected,setSelected]=useState<number[]>([]);
+  const [locations,setLocations]=useState<Record<number,string>>({6:"Archive"});
   const list=useMemo(()=>{
-    if(folder==="Starred")return mail.filter(m=>[1,3,7].includes(m.id));
-    if(folder==="Snoozed")return mail.filter(m=>m.id===4);
-    if(folder==="Archive")return mail.filter(m=>m.id===6);
-    if(["Sent","Drafts","Spam","Trash"].includes(folder))return [];
-    return mail;
-  },[folder]);
+    if(folder==="Starred")return mail.filter(m=>[1,3,7].includes(m.id)&&!locations[m.id]);
+    if(folder==="Snoozed")return mail.filter(m=>m.id===4&&!locations[m.id]);
+    if(["Archive","Spam","Trash"].includes(folder))return mail.filter(m=>locations[m.id]===folder);
+    if(["Sent","Drafts"].includes(folder))return [];
+    return mail.filter(m=>!locations[m.id]);
+  },[folder,locations]);
   const opened=mail.find(m=>m.id===openId);
   const tasks=mail.filter(m=>converted.includes(m.id));
   const task=mail.find(m=>m.id===taskId)??tasks[0];
   const work=suggestedWork(task);
   function notify(text:string){setToast(text);window.setTimeout(()=>setToast(""),2300)}
   function convert(message:Mail){if(!converted.includes(message.id))setConverted(v=>[message.id,...v]);setTaskId(message.id);setView("tasks");setOpenId(null);notify("Task created with this email as context")}
+  function chooseFolder(next:string){setView("mail");setFolder(next);setOpenId(null);setSelected([])}
+  function toggleSelected(id:number){setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id])}
+  function toggleAll(){const ids=list.map(message=>message.id);setSelected(current=>ids.length>0&&ids.every(id=>current.includes(id))?current.filter(id=>!ids.includes(id)):[...new Set([...current,...ids])])}
+  function moveSelected(destination:"Archive"|"Spam"|"Trash"){
+    if(!selected.length)return;
+    const total=selected.length;
+    setLocations(current=>({...current,...Object.fromEntries(selected.map(id=>[id,destination]))}));
+    setSelected([]);
+    notify(`${total} email${total===1?"":"s"} moved to ${destination}`);
+  }
   function askEmail(e:React.FormEvent){
     e.preventDefault();
     const q=search.trim().toLowerCase();
@@ -72,14 +84,14 @@ export default function Home(){
       <div className="brand"><span>R</span><b>Resolve</b></div>
       <button className="compose" onClick={()=>setCompose(true)}>＋ <span>Compose</span></button>
       <nav>
-        <button className={view==="mail"&&folder==="Inbox"?"active":""} onClick={()=>{setView("mail");setFolder("Inbox");setOpenId(null)}}><span>▰</span>Inbox<b>3</b></button>
-        <button onClick={()=>{setView("mail");setFolder("Starred");setOpenId(null)}}><span>☆</span>Starred</button>
-        <button onClick={()=>{setView("mail");setFolder("Snoozed");setOpenId(null)}}><span>◷</span>Snoozed</button>
-        <button onClick={()=>{setView("mail");setFolder("Sent");setOpenId(null)}}><span>➤</span>Sent</button>
-        <button onClick={()=>{setView("mail");setFolder("Drafts");setOpenId(null)}}><span>▱</span>Drafts<b>2</b></button>
-        <button onClick={()=>{setView("mail");setFolder("Archive");setOpenId(null)}}><span>▣</span>Archive</button>
-        <button onClick={()=>{setView("mail");setFolder("Spam");setOpenId(null)}}><span>!</span>Spam</button>
-        <button onClick={()=>{setView("mail");setFolder("Trash");setOpenId(null)}}><span>♲</span>Trash</button>
+        <button className={view==="mail"&&folder==="Inbox"?"active":""} onClick={()=>chooseFolder("Inbox")}><span>▰</span>Inbox<b>3</b></button>
+        <button className={view==="mail"&&folder==="Starred"?"active":""} onClick={()=>chooseFolder("Starred")}><span>☆</span>Starred</button>
+        <button className={view==="mail"&&folder==="Snoozed"?"active":""} onClick={()=>chooseFolder("Snoozed")}><span>◷</span>Snoozed</button>
+        <button className={view==="mail"&&folder==="Sent"?"active":""} onClick={()=>chooseFolder("Sent")}><span>➤</span>Sent</button>
+        <button className={view==="mail"&&folder==="Drafts"?"active":""} onClick={()=>chooseFolder("Drafts")}><span>▱</span>Drafts<b>2</b></button>
+        <button className={view==="mail"&&folder==="Archive"?"active":""} onClick={()=>chooseFolder("Archive")}><span>▣</span>Archive</button>
+        <button className={view==="mail"&&folder==="Spam"?"active":""} onClick={()=>chooseFolder("Spam")}><span>!</span>Spam</button>
+        <button className={view==="mail"&&folder==="Trash"?"active":""} onClick={()=>chooseFolder("Trash")}><span>♲</span>Trash</button>
       </nav>
       <div className="account"><span>M</span><div><b>pat@gmail.com</b><small>Connected</small></div><i>✓</i></div>
     </aside>
@@ -94,8 +106,8 @@ export default function Home(){
       {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>{setView("mail");setOpenId(id);setAnswer(null)}}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
 
       {view==="mail"&&!opened&&<section className="inbox">
-        <div className="mail-tools"><button>□⌄</button><button>↻</button><span/><small>1–{list.length}</small><button>‹</button><button>›</button></div>
-        <div className="mail-list">{list.map(m=><article key={m.id} className={m.unread?"unread":""} onClick={()=>setOpenId(m.id)}><button onClick={e=>e.stopPropagation()}>□</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[m.id]}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
+        <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>notify("Inbox refreshed")}>↻</button><span/><small>{list.length?`1–${list.length}`:"0"}</small><button>‹</button><button>›</button></>}</div>
+        <div className="mail-list">{list.map(m=><article key={m.id} className={`${m.unread?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>setOpenId(m.id)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[m.id]}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
       </section>}
 
       {view==="mail"&&opened&&<section className="reader">
