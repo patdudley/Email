@@ -12,7 +12,20 @@ const mail:Mail[]=[
   {id:4,sender:"HealthCo Claims",email:"claims@healthco.com",initials:"HC",tone:"mint",subject:"Claim HC-77120 received",preview:"We received your dental reimbursement claim. Most claims are processed within 14 days.",time:"Mon",date:"Monday, 11:12 AM",body:["We received your out-of-network dental reimbursement claim HC-77120.","Most claims are processed within 14 calendar days. We will contact you if more documentation is required."],work:{title:"Track dental reimbursement",next:"Wait for the explanation of benefits",deadline:"Aug 21",instruction:"Monitor this claim. If there is no update by August 7, prepare a short status request."}},
   {id:5,sender:"Maya Chen",email:"maya@northstarstudio.com",initials:"MC",tone:"rose",subject:"Updated launch timeline",preview:"Can you confirm that Tuesday at 2 PM still works for the stakeholder review?",time:"Mon",date:"Monday, 8:34 AM",unread:true,body:["Hey Pat,","I moved the review milestone to Tuesday. Can you confirm that 2 PM still works for the stakeholder review?","Thanks!\nMaya"],work:{title:"Confirm stakeholder review",next:"Reply to confirm Tuesday at 2 PM",deadline:"Aug 4",instruction:"Check my calendar, draft a confirmation, and add the event after Maya replies."}},
   {id:6,sender:"Figma",email:"billing@figma.com",initials:"F",tone:"peach",subject:"Your receipt for July",preview:"Your July receipt for $45.00 is attached and ready to download.",time:"Sun",date:"Sunday, 6:03 AM",attachment:"Figma July receipt.pdf",body:["Thanks for your payment.","Your July receipt for $45.00 is attached and ready to download."]},
+  {id:7,sender:"Fontainebleau Las Vegas",email:"reservations@fontainebleaulasvegas.com",initials:"FL",tone:"blue",subject:"Your Las Vegas stay is confirmed — confirmation FB19482",preview:"We look forward to welcoming you August 18–21. Check-in begins at 3:00 PM.",time:"Jul 22",date:"July 22, 2:14 PM",body:["Your stay is confirmed.","Fontainebleau Las Vegas\nAugust 18–21\nCheck-in: 3:00 PM\nCheck-out: 11:00 AM","Confirmation number: FB19482"]},
+  {id:8,sender:"Delta Air Lines",email:"DeltaAirLines@t.delta.com",initials:"DL",tone:"lilac",subject:"Flight receipt and itinerary — Las Vegas",preview:"Los Angeles to Las Vegas on August 18. Return flight departs August 21.",time:"Jul 21",date:"July 21, 6:48 PM",body:["Your trip is confirmed.","Outbound · August 18\nDL 2127 · LAX 10:20 AM → LAS 11:34 AM","Return · August 21\nDL 1674 · LAS 6:45 PM → LAX 8:02 PM","Confirmation: G7K2LM"]},
 ];
+
+const aiSummaries:Record<number,string>={
+  1:"Insurance adjuster needs the final paid invoice by Aug 12 to release up to $2,150.",
+  2:"Ship the damaged table by Aug 3 to remain eligible for the $429 refund.",
+  3:"Vendor agrees the $680 charge is duplicated but has not yet issued the credit.",
+  4:"Dental claim was received and should be processed within 14 days.",
+  5:"Maya needs confirmation that Tuesday at 2 PM works for the review.",
+  6:"July Figma receipt for $45; no response or follow-up needed.",
+  7:"Vegas hotel: Fontainebleau, Aug 18–21; check-in starts at 3 PM.",
+  8:"Vegas flights: depart LAX Aug 18 at 10:20 AM; return Aug 21 at 6:45 PM.",
+};
 
 function suggestedWork(message:Mail):Work{return message.work??{title:message.subject,next:"Review this email",instruction:`Use the full email from ${message.sender} as context. Help me decide and complete the next action, but ask before sending anything.`}}
 
@@ -29,19 +42,45 @@ export default function Home(){
   const [contexts,setContexts]=useState<Record<number,string>>({});
   const [prompt,setPrompt]=useState("");
   const [toast,setToast]=useState("");
-  const list=useMemo(()=>{const q=search.toLowerCase();return q?mail.filter(m=>`${m.sender} ${m.subject} ${m.preview}`.toLowerCase().includes(q)):mail},[search]);
+  const [answer,setAnswer]=useState<{text:string;ids:number[]}|null>(null);
+  const list=useMemo(()=>{
+    if(folder==="Starred")return mail.filter(m=>[1,3,7].includes(m.id));
+    if(folder==="Snoozed")return mail.filter(m=>m.id===4);
+    if(folder==="Archive")return mail.filter(m=>m.id===6);
+    if(["Sent","Drafts","Spam","Trash"].includes(folder))return [];
+    return mail;
+  },[folder]);
   const opened=mail.find(m=>m.id===openId);
   const tasks=mail.filter(m=>converted.includes(m.id));
   const task=mail.find(m=>m.id===taskId)??tasks[0];
   const work=suggestedWork(task);
   function notify(text:string){setToast(text);window.setTimeout(()=>setToast(""),2300)}
   function convert(message:Mail){if(!converted.includes(message.id))setConverted(v=>[message.id,...v]);setTaskId(message.id);setView("tasks");setOpenId(null);notify("Task created with this email as context")}
+  function askEmail(e:React.FormEvent){
+    e.preventDefault();
+    const q=search.trim().toLowerCase();
+    if(!q)return;
+    if(q.includes("hotel")||q.includes("staying")||q.includes("stay")&&q.includes("vegas"))setAnswer({text:"You’re staying at Fontainebleau Las Vegas from August 18–21. Check-in begins at 3:00 PM, and your confirmation number is FB19482.",ids:[7]});
+    else if(q.includes("flight")||q.includes("fly")||q.includes("depart"))setAnswer({text:"Your outbound flight is Delta 2127 from LAX to Las Vegas on August 18 at 10:20 AM. Your return is Delta 1674 on August 21 at 6:45 PM.",ids:[8]});
+    else if(q.includes("vegas")||q.includes("trip"))setAnswer({text:"Your Las Vegas trip runs August 18–21. You’re flying Delta and staying at Fontainebleau Las Vegas.",ids:[7,8]});
+    else if(q.includes("refund")||q.includes("money"))setAnswer({text:"Two emails involve money to recover: a $429 West Elm refund and a $680 duplicate Acme charge. Your insurance claim may reimburse up to $2,150.",ids:[1,2,3]});
+    else {const found=mail.filter(m=>`${m.sender} ${m.subject} ${m.preview} ${m.body.join(" ")}`.toLowerCase().includes(q)).slice(0,3);setAnswer({text:found.length?`I found ${found.length} relevant email${found.length===1?"":"s"}. Open a source below to review the details.`:"I couldn’t find a confident answer in these emails. Try asking about a person, trip, purchase, deadline, or confirmation.",ids:found.map(m=>m.id)});}
+  }
 
   return <main className="app">
     <aside className="sidebar">
       <div className="brand"><span>R</span><b>Resolve</b></div>
       <button className="compose" onClick={()=>setCompose(true)}>＋ <span>Compose</span></button>
-      <nav><button className={view==="mail"&&folder==="Inbox"?"active":""} onClick={()=>{setView("mail");setFolder("Inbox");setOpenId(null)}}><span>▰</span>Inbox<b>3</b></button><button onClick={()=>{setView("mail");setFolder("Sent");setOpenId(null)}}><span>➤</span>Sent</button><button onClick={()=>{setView("mail");setFolder("Drafts");setOpenId(null)}}><span>▱</span>Drafts<b>2</b></button></nav>
+      <nav>
+        <button className={view==="mail"&&folder==="Inbox"?"active":""} onClick={()=>{setView("mail");setFolder("Inbox");setOpenId(null)}}><span>▰</span>Inbox<b>3</b></button>
+        <button onClick={()=>{setView("mail");setFolder("Starred");setOpenId(null)}}><span>☆</span>Starred</button>
+        <button onClick={()=>{setView("mail");setFolder("Snoozed");setOpenId(null)}}><span>◷</span>Snoozed</button>
+        <button onClick={()=>{setView("mail");setFolder("Sent");setOpenId(null)}}><span>➤</span>Sent</button>
+        <button onClick={()=>{setView("mail");setFolder("Drafts");setOpenId(null)}}><span>▱</span>Drafts<b>2</b></button>
+        <button onClick={()=>{setView("mail");setFolder("Archive");setOpenId(null)}}><span>▣</span>Archive</button>
+        <button onClick={()=>{setView("mail");setFolder("Spam");setOpenId(null)}}><span>!</span>Spam</button>
+        <button onClick={()=>{setView("mail");setFolder("Trash");setOpenId(null)}}><span>♲</span>Trash</button>
+      </nav>
       <div className="account"><span>M</span><div><b>pat@gmail.com</b><small>Connected</small></div><i>✓</i></div>
     </aside>
 
@@ -49,14 +88,15 @@ export default function Home(){
       <header className="topbar">
         <div className="mobile-logo">R</div>
         <div className="tabs"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{tasks.length}</span></button></div>
-        <label><span>⌕</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={view==="mail"?"Search mail":"Search tasks"}/></label>
+        <form className="ai-search" onSubmit={askEmail}><span>✦</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ask anything about your email…"/><button aria-label="Ask Resolve">↑</button></form>
         <button className="avatar">PD</button>
       </header>
+      {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>{setView("mail");setOpenId(id);setAnswer(null)}}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
 
       {view==="mail"&&!opened&&<section className="inbox">
         <header className="inbox-head"><div><h1>{folder}</h1><p>{list.length} conversations</p></div><button onClick={()=>notify("Inbox refreshed")}>↻</button></header>
         <div className="mail-tools"><button>□⌄</button><button>↻</button><span/><small>1–{list.length}</small><button>‹</button><button>›</button></div>
-        <div className="mail-list">{list.map(m=><article key={m.id} className={m.unread?"unread":""} onClick={()=>setOpenId(m.id)}><button onClick={e=>e.stopPropagation()}>□</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span> — {m.preview}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}</div>
+        <div className="mail-list">{list.map(m=><article key={m.id} className={m.unread?"unread":""} onClick={()=>setOpenId(m.id)}><button onClick={e=>e.stopPropagation()}>□</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[m.id]}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
       </section>}
 
       {view==="mail"&&opened&&<section className="reader">

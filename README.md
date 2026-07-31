@@ -1,11 +1,14 @@
 # Resolve
 
-Resolve is an inbox-first email platform with tasks and automation built directly into every thread. It combines a familiar Gmail-style experience with persistent cases, deadlines, next actions, and approval-gated AI assistance.
+Resolve is an inbox-first email platform with tasks and AI built directly into every thread. It combines a familiar Gmail-style mailbox with natural-language search, concise email summaries, and contextual tasks.
 
 ## MVP
 
 - Minimal inbox, reader, compose, and reply experience
-- A calm top-level Tasks section inspired by focused writing tools
+- Natural-language AI search for questions such as “What hotel am I staying at in Vegas?”
+- AI summaries on every inbox row for fast scanning
+- Familiar Inbox, Starred, Snoozed, Sent, Drafts, Archive, Spam, and Trash navigation
+- Prominent Mail and Tasks tabs inspired by focused writing tools
 - One-click conversion from any email into a tracked task
 - Full email-thread, people, attachment, deadline, and instruction context for the AI agent
 - AI-prepared replies and actions with explicit approval
