@@ -16,3 +16,6 @@
 
 /* Keep essential navigation visible at every desktop height */
 .sidebar{padding:18px 14px 12px}.brand{padding:0 8px 20px}.compose{height:42px;margin-bottom:12px}.sidebar nav{gap:2px}.sidebar nav button{height:38px}.folder-heading{margin-top:11px}.connectors-link{flex:0 0 44px;width:100%;margin-top:8px;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;padding:7px 12px 0;color:#5f6660;font-size:13px;font-weight:650;display:flex;align-items:center;gap:11px;text-align:left}.connectors-link>span{width:16px}.connectors-link.active{margin-top:8px;border-top-color:transparent;border-radius:9px;background:#e8f0eb;color:var(--green)}.account{margin-top:8px;padding-top:10px;flex:0 0 auto}
+
+/* Stable sidebar geometry across every app view */
+.sidebar{height:100vh;max-height:100vh}.sidebar nav{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;align-content:flex-start}.sidebar nav>button,.sidebar nav>.folder-heading,.sidebar nav>.folder-item{flex:0 0 auto}.sidebar nav button{min-height:38px}.connectors-link,.account,.brand,.compose{flex-shrink:0}
