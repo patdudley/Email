@@ -1,14 +1,14 @@
 # Resolve
 
-Resolve is an AI command center for the unfinished administrative work buried in email. It turns unresolved messages into persistent cases with goals, money at stake, deadlines, next actions, and approval-gated AI assistance.
+Resolve is an inbox-first email platform with tasks and automation built directly into every thread. It combines a familiar Gmail-style experience with persistent cases, deadlines, next actions, and approval-gated AI assistance.
 
 ## MVP
 
-- Outcome-based case dashboard
-- Money, deadline, approval, and waiting-on summaries
-- Case filters and detailed case drawer
-- AI-prepared actions with explicit approval
-- Conversational queries for refunds, waiting-on items, and quick wins
+- Familiar inbox, thread reader, search, compose, reply, and mail actions
+- Tasks and outcome tracking attached directly to email threads
+- AI-prepared replies and actions with explicit approval
+- Follow-up and resolution-monitoring automations
+- Work views for tasks, approvals, and active automations
 - Responsive desktop and mobile layouts
 - Realistic demonstration data for returns, claims, reimbursements, and billing disputes
 

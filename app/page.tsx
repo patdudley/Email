@@ -2,209 +2,214 @@
 
 import { useMemo, useState } from "react";
 
-type CaseStatus = "Needs your action" | "Ready for approval" | "Waiting on someone" | "Follow-up due";
-
-type CaseItem = {
+type Mail = {
   id: number;
-  title: string;
-  category: string;
-  goal: string;
-  status: CaseStatus;
-  amount?: number;
-  deadline?: string;
-  lastAction: string;
-  nextAction: string;
-  missing?: string;
+  sender: string;
+  email: string;
   initials: string;
-  accent: string;
-  aiAction: string;
+  color: string;
+  subject: string;
+  preview: string;
+  time: string;
+  date: string;
+  unread?: boolean;
+  starred?: boolean;
+  label?: string;
+  body: string[];
+  attachment?: string;
+  resolve?: {
+    kind: string;
+    status: string;
+    goal: string;
+    amount?: string;
+    deadline?: string;
+    next: string;
+    automation: string;
+    ready?: string;
+  };
 };
 
-const cases: CaseItem[] = [
+const mail: Mail[] = [
   {
-    id: 1,
-    title: "Auto insurance claim",
-    category: "Insurance",
-    goal: "Receive reimbursement for vehicle repairs",
-    status: "Ready for approval",
-    amount: 2150,
-    deadline: "Aug 12",
-    lastAction: "Repair estimate sent July 27",
-    nextAction: "Send final invoice and request confirmation",
-    missing: "Final repair invoice",
-    initials: "PA",
-    accent: "violet",
-    aiAction: "Invoice found. Reply drafted with the document attached.",
+    id: 1, sender: "Priya Shah", email: "priya.shah@pacificadjusters.com", initials: "PS", color: "lavender",
+    subject: "Re: Claim #PA-28491 — final documentation", preview: "Thanks for sending the repair estimate. To complete our review, please reply with the final paid invoice…", time: "10:42 AM", date: "Today, 10:42 AM", unread: true, starred: true, label: "Insurance",
+    body: ["Hi Pat,", "Thanks for sending the repair estimate. To complete our review, please reply with the final paid invoice no later than August 12.", "Once we receive it, reimbursement of up to $2,150 will be issued within 7–10 business days.", "Best,\nPriya Shah\nClaims Adjuster"],
+    attachment: "Repair estimate.pdf",
+    resolve: { kind: "Insurance claim", status: "Ready for approval", goal: "Receive reimbursement for vehicle repairs", amount: "$2,150", deadline: "Aug 12", next: "Send the final invoice and ask Priya to confirm receipt", automation: "If Priya does not reply within 4 days, prepare a follow-up.", ready: "I found Final repair invoice.pdf in your email from Caliber Collision and attached it to a drafted reply." },
   },
   {
-    id: 2,
-    title: "West Elm return",
-    category: "Return",
-    goal: "Return damaged side table for a full refund",
-    status: "Needs your action",
-    amount: 429,
-    deadline: "Aug 3",
-    lastAction: "Return label received yesterday",
-    nextAction: "Drop package at UPS before the return window closes",
-    initials: "WE",
-    accent: "orange",
-    aiAction: "Nearest UPS location found. Add the drop-off to your calendar.",
+    id: 2, sender: "West Elm", email: "support@westelm.com", initials: "WE", color: "sand",
+    subject: "Your return label is ready", preview: "Your prepaid UPS return label for order #WE938104 is attached. Please ship your item by August 3…", time: "9:18 AM", date: "Today, 9:18 AM", unread: true, label: "Returns",
+    body: ["Hi Pat,", "Your prepaid UPS return label for order #WE938104 is attached. Please ship your damaged item by August 3 to remain eligible for a full refund of $429.", "We’ll email you once your return is received."], attachment: "UPS return label.pdf",
+    resolve: { kind: "Product return", status: "Needs your action", goal: "Receive a full refund for the damaged side table", amount: "$429", deadline: "Aug 3", next: "Drop the package at UPS within 3 days", automation: "Track the package and keep this open until the $429 refund arrives.", ready: "I found a UPS Store 0.8 miles away. I can add a 20-minute drop-off block tomorrow at 9:30 AM." },
   },
   {
-    id: 3,
-    title: "Acme vendor overcharge",
-    category: "Billing",
-    goal: "Correct duplicate line item on invoice #1048",
-    status: "Follow-up due",
-    amount: 680,
-    lastAction: "Dispute sent 8 days ago",
-    nextAction: "Follow up with accounts receivable today",
-    initials: "AC",
-    accent: "blue",
-    aiAction: "Polite escalation drafted using the original invoice details.",
+    id: 3, sender: "Marcus at Acme Supply", email: "marcus@acmesupply.co", initials: "MA", color: "sky",
+    subject: "Re: Duplicate charge on invoice #1048", preview: "I’m looking into this with our accounts receivable team and should have an update for you shortly…", time: "Yesterday", date: "Yesterday, 3:56 PM", starred: true, label: "Vendors",
+    body: ["Hi Pat,", "I’m looking into this with our accounts receivable team and should have an update for you shortly. I agree that the $680 equipment line appears twice.", "I’ll circle back as soon as I have approval for the credit.", "Marcus"],
+    resolve: { kind: "Billing dispute", status: "Follow-up due", goal: "Recover the duplicate vendor charge", amount: "$680", next: "Follow up today — the promised update is 3 days overdue", automation: "Monitor for a credit memo and verify it against the next statement.", ready: "A concise follow-up is drafted. It references the duplicate line and Marcus’s promised update." },
   },
   {
-    id: 4,
-    title: "Dental reimbursement",
-    category: "Reimbursement",
-    goal: "Receive out-of-network reimbursement",
-    status: "Waiting on someone",
-    amount: 312,
-    deadline: "Aug 21",
-    lastAction: "Claim form received by insurer July 24",
-    nextAction: "Monitor for explanation of benefits",
-    initials: "HC",
-    accent: "green",
-    aiAction: "Monitoring the thread. Follow-up is scheduled for August 7.",
+    id: 4, sender: "HealthCo Claims", email: "claims@healthco.com", initials: "HC", color: "mint",
+    subject: "Claim HC-77120 received", preview: "We received your out-of-network dental reimbursement claim. Most claims are processed within 14 days…", time: "Mon", date: "Monday, 11:12 AM", label: "Health",
+    body: ["We received your out-of-network dental reimbursement claim HC-77120.", "Most claims are processed within 14 calendar days. We will contact you if additional documentation is required.", "You can reply to this message with questions."],
+    resolve: { kind: "Reimbursement", status: "Waiting on someone", goal: "Receive dental reimbursement", amount: "$312", deadline: "Aug 21", next: "Wait for the explanation of benefits", automation: "If there is no update by August 7, draft a status request." },
+  },
+  {
+    id: 5, sender: "Maya Chen", email: "maya@northstarstudio.com", initials: "MC", color: "rose",
+    subject: "Updated launch timeline", preview: "I moved the review milestone to Tuesday and added your notes to the project brief. Can you confirm…", time: "Mon", date: "Monday, 8:34 AM", unread: true,
+    body: ["Hey Pat,", "I moved the review milestone to Tuesday and added your notes to the project brief. Can you confirm that 2 PM still works for the stakeholder review?", "Thanks!\nMaya"],
+    resolve: { kind: "Meeting request", status: "Needs your action", goal: "Confirm the stakeholder review", deadline: "Aug 4", next: "Confirm Tuesday at 2 PM", automation: "Add the meeting to your calendar after the time is confirmed.", ready: "I checked your calendar. Tuesday at 2 PM is open, and a short confirmation reply is ready." },
+  },
+  {
+    id: 6, sender: "Figma", email: "billing@figma.com", initials: "F", color: "peach",
+    subject: "Your receipt for July", preview: "Thanks for your payment. Your July receipt is ready to download…", time: "Sun", date: "Sunday, 6:03 AM",
+    body: ["Thanks for your payment.", "Your July receipt for $45.00 is attached and ready to download."], attachment: "Figma July receipt.pdf",
+  },
+  {
+    id: 7, sender: "Nora Williams", email: "nora@brightlinelegal.com", initials: "NW", color: "slate",
+    subject: "Contract renewal notes", preview: "Attached are the redlines we discussed. The indemnification language is the only remaining issue…", time: "Fri", date: "Friday, 4:28 PM", label: "Legal",
+    body: ["Hi Pat,", "Attached are the redlines we discussed. The indemnification language is the only remaining issue. Please send any final comments before our call next Wednesday.", "Best,\nNora"], attachment: "Renewal agreement — redline.docx",
+    resolve: { kind: "Contract review", status: "Needs your action", goal: "Complete vendor contract renewal", deadline: "Aug 5", next: "Review the indemnification redlines before Wednesday", automation: "Remind you Monday morning if the document is still unreviewed." },
   },
 ];
 
-const filters = ["All open", "Needs your action", "Ready for approval", "Waiting on someone", "Follow-up due"];
-
-function money(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
-}
+const folders = [
+  ["▰", "Inbox", "3"], ["☆", "Starred", ""], ["◷", "Snoozed", ""], ["➤", "Sent", ""], ["▱", "Drafts", "2"],
+];
 
 export default function Home() {
-  const [filter, setFilter] = useState("All open");
-  const [selected, setSelected] = useState<CaseItem | null>(null);
-  const [query, setQuery] = useState("");
-  const [assistantReply, setAssistantReply] = useState("I can find deadlines, prepare follow-ups, or show you the quickest wins.");
+  const [selectedId, setSelectedId] = useState(1);
+  const [folder, setFolder] = useState("Inbox");
+  const [search, setSearch] = useState("");
+  const [compose, setCompose] = useState(false);
+  const [replying, setReplying] = useState(false);
+  const [reply, setReply] = useState("");
+  const [sent, setSent] = useState<number[]>([]);
   const [approved, setApproved] = useState<number[]>([]);
+  const [taskDone, setTaskDone] = useState<number[]>([]);
   const [toast, setToast] = useState("");
+  const [rightTab, setRightTab] = useState<"work" | "activity">("work");
+  const [mobileReader, setMobileReader] = useState(false);
 
-  const visibleCases = useMemo(
-    () => filter === "All open" ? cases : cases.filter((item) => item.status === filter),
-    [filter],
-  );
-
-  function runAssistant(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim()) return;
-    const lower = query.toLowerCase();
-    if (lower.includes("refund") || lower.includes("money")) {
-      setAssistantReply("You have $3,571 at stake across 4 open cases. The $680 Acme overcharge is the most overdue; I can send its follow-up after you approve it.");
-    } else if (lower.includes("quick") || lower.includes("five")) {
-      setAssistantReply("Two quick wins: approve the insurance reply, then add the West Elm drop-off to your calendar. Both are ready now.");
-    } else if (lower.includes("waiting")) {
-      setAssistantReply("The dental reimbursement is waiting on HealthCo. I’m monitoring it and will prepare a follow-up if there’s no response by August 7.");
-    } else {
-      setAssistantReply("I found 4 related open cases. The insurance deadline is the highest-value priority, and the Acme follow-up is already overdue.");
+  const messages = useMemo(() => {
+    let list = folder === "Starred" ? mail.filter((item) => item.starred) : folder === "Tasks" ? mail.filter((item) => item.resolve) : mail;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((item) => `${item.sender} ${item.subject} ${item.preview}`.toLowerCase().includes(q));
     }
-    setQuery("");
+    return list;
+  }, [folder, search]);
+  const selected = mail.find((item) => item.id === selectedId) ?? mail[0];
+
+  function notify(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2600);
   }
 
-  function approve(item: CaseItem) {
-    setApproved((current) => [...current, item.id]);
-    setToast(`Approved: ${item.title}`);
-    window.setTimeout(() => setToast(""), 2800);
+  function sendReply() {
+    if (!reply.trim()) return;
+    setSent((current) => [...current, selected.id]);
+    setReply("");
+    setReplying(false);
+    notify("Reply sent through your Gmail account");
+  }
+
+  function chooseMessage(id: number) {
+    setSelectedId(id);
+    setReplying(false);
+    setRightTab("work");
+    setMobileReader(true);
   }
 
   return (
-    <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">R</span><span>Resolve</span></div>
-        <button className="new-case" onClick={() => setToast("New case intake opened")}>＋ <span>New case</span></button>
-        <nav aria-label="Primary navigation">
-          <button className="nav-item active"><span>⌂</span> Command center</button>
-          <button className="nav-item"><span>▤</span> All cases <b>12</b></button>
-          <button className="nav-item"><span>✓</span> AI approvals <b className="hot">5</b></button>
-          <button className="nav-item"><span>◷</span> Waiting on <b>4</b></button>
-          <button className="nav-item"><span>◇</span> Resolved</button>
+    <main className="mail-app">
+      <aside className="mail-nav">
+        <div className="mail-brand"><span>R</span><strong>Resolve</strong></div>
+        <button className="compose-button" onClick={() => setCompose(true)}><b>＋</b> Compose</button>
+        <nav aria-label="Mailbox folders">
+          {folders.map(([icon, name, count]) => <button key={name} className={folder === name ? "active" : ""} onClick={() => setFolder(name)}><span>{icon}</span>{name}{count && <b>{count}</b>}</button>)}
         </nav>
-        <div className="sidebar-section">
-          <p>SMART VIEWS</p>
-          <button className="nav-item"><span className="dot coral" /> Money at risk</button>
-          <button className="nav-item"><span className="dot yellow" /> Deadlines this week</button>
-          <button className="nav-item"><span className="dot blue-dot" /> Quick wins</button>
-        </div>
-        <div className="inbox-card">
-          <div className="gmail">M</div>
-          <div><strong>pat@gmail.com</strong><span>Synced 2 min ago</span></div>
-          <i>✓</i>
-        </div>
-        <div className="profile"><div className="avatar">PD</div><div><strong>Pat Dudley</strong><span>Pro plan</span></div><button>•••</button></div>
+        <div className="nav-rule" />
+        <p className="nav-title">RESOLVE</p>
+        <nav aria-label="Resolve views">
+          <button className={folder === "Tasks" ? "active" : ""} onClick={() => setFolder("Tasks")}><span>✓</span>Tasks<b>6</b></button>
+          <button onClick={() => notify("5 prepared actions are ready for review")}><span>✦</span>AI approvals<b className="violet-count">5</b></button>
+          <button onClick={() => notify("Automation center opened")}><span>↻</span>Automations</button>
+          <button onClick={() => notify("Work dashboard opened")}><span>▦</span>Work dashboard</button>
+        </nav>
+        <div className="nav-rule" />
+        <p className="nav-title">LABELS <button aria-label="Add label">＋</button></p>
+        <nav className="labels">
+          <button><i className="label-dot green" />Finance</button><button><i className="label-dot purple" />Insurance</button><button><i className="label-dot orange" />Returns</button><button><i className="label-dot blue" />Vendors</button>
+        </nav>
+        <div className="gmail-status"><span className="gmail-m">M</span><div><strong>pat@gmail.com</strong><small>Gmail connected</small></div><i>✓</i></div>
+        <div className="user-row"><span>PD</span><div><strong>Pat Dudley</strong><small>Pro workspace</small></div><button>•••</button></div>
       </aside>
 
-      <section className="workspace">
-        <header className="topbar">
-          <div className="mobile-brand"><span className="brand-mark">R</span> Resolve</div>
-          <label className="search"><span>⌕</span><input aria-label="Search cases" placeholder="Search cases, emails, or documents" /><kbd>⌘ K</kbd></label>
-          <div className="top-actions"><button aria-label="Help">?</button><button aria-label="Notifications">♧<span /></button></div>
+      <section className="mail-center">
+        <header className="mail-topbar">
+          <button className="mobile-menu" aria-label="Menu">☰</button>
+          <label className="mail-search"><span>⌕</span><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mail, people, or tasks" aria-label="Search email" /><kbd>⌘ K</kbd></label>
+          <button className="top-icon" aria-label="Ask Resolve" onClick={() => notify("Ask Resolve is ready")}>✦</button>
+          <button className="top-icon" aria-label="Settings">⚙</button>
+          <span className="top-avatar">PD</span>
         </header>
 
-        <div className="content">
-          <div className="welcome-row">
-            <div><p className="eyebrow">FRIDAY, JULY 31</p><h1>Good morning, Pat.</h1><p>Here’s what needs attention across your inbox.</p></div>
-            <button className="ask-ai" onClick={() => document.getElementById("assistant-input")?.focus()}><span>✦</span> Ask Resolve</button>
-          </div>
-
-          <section className="summary-grid" aria-label="Open work summary">
-            <article><span className="metric-icon recover">$</span><div><p>Money recoverable</p><strong>$3,571</strong><small>across 4 cases</small></div><em>↑ $680</em></article>
-            <article><span className="metric-icon reply">↗</span><div><p>Waiting on replies</p><strong>4</strong><small>2 overdue</small></div></article>
-            <article><span className="metric-icon deadline">◷</span><div><p>Deadlines this week</p><strong>2</strong><small>Next: Aug 3</small></div><em className="warning">3 days</em></article>
-            <article><span className="metric-icon sparkle">✦</span><div><p>Ready for approval</p><strong>5</strong><small>AI actions prepared</small></div><button onClick={() => setFilter("Ready for approval")}>Review</button></article>
+        <div className={`mail-columns ${mobileReader ? "show-reader" : ""}`}>
+          <section className="thread-list">
+            <header className="list-header"><div><h1>{folder}</h1><span>{messages.length} conversations</span></div><button aria-label="More inbox options">•••</button></header>
+            <div className="list-tools"><button aria-label="Select all">□⌄</button><button onClick={() => notify("Inbox refreshed")} aria-label="Refresh">↻</button><div /><button aria-label="Previous page">‹</button><span>1–{messages.length}</span><button aria-label="Next page">›</button></div>
+            <div className="quick-summary"><span>✦</span><p><b>3 things need you today.</b> $3,259 is at stake across your inbox.</p><button onClick={() => setFolder("Tasks")}>View work</button></div>
+            <div className="message-scroll">
+              {messages.map((item) => (
+                <article key={item.id} className={`message-row ${selected.id === item.id ? "selected" : ""} ${item.unread ? "unread" : ""}`} onClick={() => chooseMessage(item.id)}>
+                  <button aria-label={`Select message from ${item.sender}`} onClick={(e) => e.stopPropagation()}>□</button>
+                  <button className={item.starred ? "star on" : "star"} aria-label="Star message" onClick={(e) => { e.stopPropagation(); notify(item.starred ? "Removed from starred" : "Added to starred"); }}>★</button>
+                  <span className={`sender-avatar ${item.color}`}>{item.initials}</span>
+                  <div className="message-info"><div><strong>{item.sender}</strong><time>{item.time}</time></div><h2>{item.subject}</h2><p>{item.preview}</p><div className="row-meta">{item.resolve && <span className="task-chip">✓ Task detected</span>}{item.label && <span>{item.label}</span>}{item.attachment && <span>⌕ 1 attachment</span>}</div></div>
+                </article>
+              ))}
+              {messages.length === 0 && <div className="empty-state"><span>⌕</span><h2>No messages found</h2><p>Try a different person, subject, or task.</p></div>}
+            </div>
           </section>
 
-          <section className="briefing">
-            <div className="brief-icon">✦</div>
-            <div><div className="brief-title"><strong>Your daily briefing</strong><span>AI GENERATED</span></div><p>Your <b>insurance claim</b> needs one document before August 12. The <b>West Elm return</b> closes in 3 days, and Acme still hasn’t answered your $680 billing dispute.</p></div>
-            <button onClick={() => setToast("Briefing marked as reviewed")}>Review priorities <span>→</span></button>
-          </section>
-
-          <div className="cases-heading"><div><h2>Open cases</h2><span>12 matters in progress</span></div><div className="view-toggle"><button className="active" aria-label="Card view">▦</button><button aria-label="List view">☷</button></div></div>
-          <div className="filters" role="tablist" aria-label="Filter cases">
-            {filters.map((item) => <button key={item} className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item}{item === "All open" && <span>12</span>}</button>)}
-          </div>
-
-          <section className="case-grid">
-            {visibleCases.map((item) => (
-              <article className="case-card" key={item.id} onClick={() => setSelected(item)}>
-                <div className="case-top"><div className={`case-avatar ${item.accent}`}>{item.initials}</div><div><span className={`status ${item.status.toLowerCase().replaceAll(" ", "-")}`}>{item.status}</span><h3>{item.title}</h3><p>{item.goal}</p></div><button aria-label={`More options for ${item.title}`} onClick={(e) => e.stopPropagation()}>•••</button></div>
-                <div className="case-facts">
-                  {item.amount && <div><span>AMOUNT AT STAKE</span><strong>{money(item.amount)}</strong></div>}
-                  {item.deadline && <div><span>DEADLINE</span><strong>{item.deadline}</strong></div>}
-                </div>
-                <div className="next-action"><span>Next action</span><p>{item.nextAction}</p></div>
-                <div className="ai-ready"><span>✦</span><p>{approved.includes(item.id) ? "Action approved — Resolve is handling it." : item.aiAction}</p>{!approved.includes(item.id) && item.status !== "Waiting on someone" && <button onClick={(e) => { e.stopPropagation(); approve(item); }}>Approve</button>}</div>
-                <footer><span>{item.category}</span><button>Open case <b>→</b></button></footer>
-              </article>
-            ))}
+          <section className="reader">
+            <header className="reader-tools"><button aria-label="Back" onClick={() => setMobileReader(false)}>←</button><button onClick={() => notify("Conversation archived")} aria-label="Archive">▣</button><button onClick={() => notify("Conversation marked as spam")} aria-label="Report spam">!</button><button onClick={() => notify("Conversation moved to trash")} aria-label="Delete">♲</button><i /><button onClick={() => notify("Conversation snoozed until tomorrow")} aria-label="Snooze">◷</button><button aria-label="Add to tasks" onClick={() => notify("Added to Tasks")}>✓</button><button aria-label="Move">▤</button><button aria-label="More">•••</button></header>
+            <div className="reader-content">
+              <div className="subject-line"><h1>{selected.subject}</h1>{selected.label && <span>{selected.label}</span>}<button aria-label="Print">⌘</button><button aria-label="Open in new window">↗</button></div>
+              <div className="sender-line"><span className={`sender-avatar large ${selected.color}`}>{selected.initials}</span><div><strong>{selected.sender}</strong><p>to me <button>⌄</button></p></div><time>{selected.date}</time><button aria-label="Star">{selected.starred ? "★" : "☆"}</button><button aria-label="Reply">↩</button><button aria-label="More">•••</button></div>
+              <div className="message-body">
+                {selected.body.map((paragraph, index) => <p key={index}>{paragraph.split("\n").map((line, i) => <span key={i}>{line}{i < paragraph.split("\n").length - 1 && <br />}</span>)}</p>)}
+              </div>
+              {selected.attachment && <button className="attachment" onClick={() => notify(`${selected.attachment} opened`)}><span>PDF</span><div><strong>{selected.attachment}</strong><small>248 KB</small></div><b>↓</b></button>}
+              {sent.includes(selected.id) && <div className="sent-note"><span>✓</span><div><b>You replied</b><p>Your message was sent through Gmail and added to this thread.</p></div></div>}
+              {!replying ? <div className="reply-actions"><button onClick={() => setReplying(true)}>↩ Reply</button><button onClick={() => setReplying(true)}>↪ Forward</button><button className="ai-reply" onClick={() => { setReply(selected.resolve?.ready ? "Hi " + selected.sender.split(" ")[0] + ",\n\nThanks for the note. I’ve attached the requested document. Please confirm once it’s received and let me know the expected timeline for completion.\n\nBest,\nPat" : "Thanks for the update. That works for me.\n\nBest,\nPat"); setReplying(true); }}>✦ Draft with Resolve</button></div> : <div className="inline-reply"><div>To: <b>{selected.sender}</b></div><textarea autoFocus value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Write a reply…" /><footer><button className="send-button" onClick={sendReply}>Send <span>⌄</span></button><button>Ａ</button><button>⌕</button><button>🔗</button><i /><button onClick={() => { setReplying(false); setReply(""); }}>♲</button></footer></div>}
+            </div>
           </section>
         </div>
       </section>
 
-      <aside className="assistant-panel">
-        <div className="assistant-head"><div><span>✦</span><div><strong>Resolve assistant</strong><small><i /> Ready to help</small></div></div><button onClick={() => setAssistantReply("I can find deadlines, prepare follow-ups, or show you the quickest wins.")}>↻</button></div>
-        <div className="assistant-body">
-          <div className="ai-message"><span>✦</span><div><p>{assistantReply}</p></div></div>
-          <p className="prompt-label">TRY ASKING</p>
-          {["What am I waiting on?", "Which issues can I finish in 5 minutes?", "Show me money I can recover"].map((prompt) => <button className="suggestion" key={prompt} onClick={() => { setQuery(prompt); window.setTimeout(() => document.getElementById("assistant-input")?.focus(), 0); }}>{prompt}<span>↗</span></button>)}
-        </div>
-        <form className="assistant-input" onSubmit={runAssistant}><textarea id="assistant-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ask about your open work…" rows={2} /><div><button type="button" aria-label="Attach document">＋</button><span>Resolve can make mistakes</span><button className="send" type="submit" aria-label="Send">↑</button></div></form>
+      <aside className="resolve-panel">
+        <header><div><span>✦</span><strong>Resolve</strong></div><button aria-label="Close panel">×</button></header>
+        <div className="panel-tabs"><button className={rightTab === "work" ? "active" : ""} onClick={() => setRightTab("work")}>Work</button><button className={rightTab === "activity" ? "active" : ""} onClick={() => setRightTab("activity")}>Activity</button></div>
+        {rightTab === "work" ? <div className="panel-scroll">
+          {selected.resolve ? <>
+            <div className="detected"><span>✦</span><div><strong>Resolve found unfinished work</strong><p>Created from this email thread</p></div></div>
+            <span className={`case-state ${selected.resolve.status.toLowerCase().replaceAll(" ", "-")}`}>{selected.resolve.status}</span>
+            <h2>{selected.resolve.kind}</h2>
+            <p className="case-goal">{selected.resolve.goal}</p>
+            <div className="case-stats">{selected.resolve.amount && <div><span>AMOUNT AT STAKE</span><strong>{selected.resolve.amount}</strong></div>}{selected.resolve.deadline && <div><span>DEADLINE</span><strong>{selected.resolve.deadline}</strong></div>}</div>
+            <div className="next-step"><span className={taskDone.includes(selected.id) ? "checked" : ""} onClick={() => setTaskDone((current) => current.includes(selected.id) ? current.filter((id) => id !== selected.id) : [...current, selected.id])}>{taskDone.includes(selected.id) ? "✓" : ""}</span><div><small>NEXT ACTION</small><p>{selected.resolve.next}</p></div></div>
+            {selected.resolve.ready && <section className="prepared"><header><span>✦</span><strong>Ready for you</strong></header><p>{approved.includes(selected.id) ? "Approved. Resolve is completing this action and will update the case." : selected.resolve.ready}</p>{approved.includes(selected.id) ? <div className="approved"><span>✓</span> Action approved</div> : <div className="prepared-actions"><button onClick={() => { setApproved((current) => [...current, selected.id]); notify("Action approved — Resolve is on it"); }}>Review & approve</button><button onClick={() => { setReply("Hi " + selected.sender.split(" ")[0] + ",\n\nThanks for the note. I’ve attached the requested document. Please confirm receipt and the next expected step.\n\nBest,\nPat"); setReplying(true); }}>Edit</button></div>}</section>}
+            <section className="automation-card"><header><span>↻</span><strong>Automation running</strong><i /></header><p>{selected.resolve.automation}</p><button onClick={() => notify("Automation settings opened")}>Manage automation <span>→</span></button></section>
+            <div className="thread-timeline"><p>CASE ACTIVITY</p><div><i className="done">✓</i><span><b>Email analyzed</b><small>Just now</small></span></div><div><i>✦</i><span><b>Next action prepared</b><small>Waiting for approval</small></span></div></div>
+          </> : <div className="no-work"><span>✓</span><h2>Nothing to handle</h2><p>Resolve didn’t find an unresolved obligation in this message.</p><button onClick={() => notify("Manual task created")}>＋ Create a task</button></div>}
+        </div> : <div className="activity-feed"><div><span>✦</span><p><b>Resolve analyzed this thread</b><small>Extracted the goal, deadline, and next action.</small></p></div>{selected.resolve && <div><span>↻</span><p><b>Monitoring enabled</b><small>{selected.resolve.automation}</small></p></div>}<div><span>•</span><p><b>Message received</b><small>{selected.date}</small></p></div></div>}
+        <form className="panel-ask" onSubmit={(e) => { e.preventDefault(); notify("Resolve analyzed the full thread"); }}><input placeholder="Ask about this thread…" aria-label="Ask Resolve about this thread" /><button>↑</button></form>
       </aside>
 
-      {selected && <div className="drawer-backdrop" onClick={() => setSelected(null)}><aside className="case-drawer" onClick={(e) => e.stopPropagation()}><button className="close" onClick={() => setSelected(null)}>×</button><span className={`status ${selected.status.toLowerCase().replaceAll(" ", "-")}`}>{selected.status}</span><h2>{selected.title}</h2><p className="drawer-goal">{selected.goal}</p><div className="drawer-amount"><span>Outcome at stake</span><strong>{selected.amount ? money(selected.amount) : "Resolution"}</strong></div><div className="timeline"><div><i className="done">✓</i><span><b>Last action</b>{selected.lastAction}</span></div><div><i>→</i><span><b>Next action</b>{selected.nextAction}</span></div>{selected.missing && <div><i>!</i><span><b>Missing item</b>{selected.missing}</span></div>}</div><section className="drawer-ai"><span>✦</span><div><b>Resolve is ready</b><p>{selected.aiAction}</p></div></section>{!approved.includes(selected.id) && selected.status !== "Waiting on someone" ? <button className="drawer-approve" onClick={() => approve(selected)}>Review & approve action</button> : <button className="drawer-approve complete">{approved.includes(selected.id) ? "Approved — action in progress" : "Monitoring this case"}</button>}</aside></div>}
+      {compose && <div className="compose-window"><header><strong>New message</strong><div><button>−</button><button>□</button><button onClick={() => setCompose(false)}>×</button></div></header><label>To <input autoFocus /></label><label>Subject <input /></label><textarea placeholder="Write your message…" /><footer><button className="send-button" onClick={() => { setCompose(false); notify("Message sent through your Gmail account"); }}>Send <span>⌄</span></button><button>Ａ</button><button>⌕</button><button>🔗</button><button>✦</button><i /><button onClick={() => setCompose(false)}>♲</button></footer></div>}
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
     </main>
   );
