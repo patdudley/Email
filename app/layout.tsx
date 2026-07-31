@@ -10,17 +10,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  const socialImage = `${protocol}://${host}/og-inbox.png`;
+  const socialImage = `${protocol}://${host}/og-simple.png`;
   return {
     title: "Resolve — Finish the work buried in your email",
-    description: "An inbox-first email platform with tasks and automation built into every thread.",
+    description: "A calm email inbox that turns messages into tasks with context for your AI agent.",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
     openGraph: {
       title: "Resolve",
-      description: "Your inbox, with follow-through.",
-      images: [{ url: socialImage, width: 1662, height: 946, alt: "Resolve — Your inbox, with follow-through" }],
+      description: "Email, with a next step.",
+      images: [{ url: socialImage, width: 1672, height: 941, alt: "Resolve — Email, with a next step" }],
     },
-    twitter: { card: "summary_large_image", title: "Resolve", description: "Your inbox, with follow-through.", images: [socialImage] },
+    twitter: { card: "summary_large_image", title: "Resolve", description: "Email, with a next step.", images: [socialImage] },
   };
 }
 

@@ -4,11 +4,11 @@ Resolve is an inbox-first email platform with tasks and automation built directl
 
 ## MVP
 
-- Familiar inbox, thread reader, search, compose, reply, and mail actions
-- Tasks and outcome tracking attached directly to email threads
+- Minimal inbox, reader, compose, and reply experience
+- A calm top-level Tasks section inspired by focused writing tools
+- One-click conversion from any email into a tracked task
+- Full email-thread, people, attachment, deadline, and instruction context for the AI agent
 - AI-prepared replies and actions with explicit approval
-- Follow-up and resolution-monitoring automations
-- Work views for tasks, approvals, and active automations
 - Responsive desktop and mobile layouts
 - Realistic demonstration data for returns, claims, reimbursements, and billing disputes
 
