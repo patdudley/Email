@@ -56,7 +56,6 @@ export default function Home(){
   const [customFolders,setCustomFolders]=useState<string[]>([]);
   const [manageFolders,setManageFolders]=useState(false);
   const [locations,setLocations]=useState<Record<number,string>>({6:"Archive"});
-  const [connected,setConnected]=useState<Record<string,boolean>>({});
   const list=useMemo(()=>{
     if(folder==="Starred")return mail.filter(m=>starred.includes(m.id)&&!locations[m.id]);
     if(folder==="Snoozed")return mail.filter(m=>locations[m.id]==="Snoozed");
@@ -182,7 +181,7 @@ export default function Home(){
         {name:"Slack",mark:"S",tone:"slack",description:"Find decisions and conversations across your permitted channels."},
         {name:"Granola",mark:"G",tone:"granola",description:"Use meeting notes, transcripts, decisions, and action items as context."},
         {name:"Glean",mark:"⌕",tone:"glean",description:"Search permission-aware company knowledge from one place."},
-      ].map(item=><article key={item.name}><div className={`connector-mark ${item.tone}`}>{item.mark}</div><div><h2>{item.name}</h2><p>{item.description}</p></div><button className={connected[item.name]?"connected":""} onClick={()=>{setConnected(current=>({...current,[item.name]:!current[item.name]}));notify(connected[item.name]?`${item.name} disconnected`:`${item.name} connection started`)}}>{connected[item.name]?"✓ Connected":"Connect"}</button></article>)}</div><footer><span>🔒</span><p><b>Your permissions stay intact.</b> Resolve only searches content your connected account can already access.</p></footer></section>}
+      ].map(item=><article key={item.name}><div className={`connector-mark ${item.tone}`}>{item.mark}</div><div><h2>{item.name}</h2><p>{item.description}</p></div><button onClick={()=>notify(`${item.name} integration is not configured yet`)}>Connect</button></article>)}</div><footer><span>🔒</span><p><b>Your permissions stay intact.</b> Resolve only searches content your connected account can already access.</p></footer></section>}
     </section>
 
     {compose&&<div className="compose-window"><header><b>New message</b><button aria-label="Close composer" onClick={()=>setCompose(false)}>×</button></header><label>To <input autoFocus value={composeTo} onChange={e=>setComposeTo(e.target.value)}/><button className="cc-toggle" onClick={()=>setShowCc(value=>!value)}>Cc/Bcc</button></label>{showCc&&<label>Cc <input value={composeCc} onChange={e=>setComposeCc(e.target.value)}/></label>}<label>Subject <input value={composeSubject} onChange={e=>setComposeSubject(e.target.value)}/></label><textarea aria-label="Message body" value={composeBody} onChange={e=>setComposeBody(e.target.value)}/><footer><button onClick={sendCompose}>Send</button><button className="attach-compose" onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button className="discard-compose" onClick={()=>{setCompose(false);setComposeTo("");setComposeCc("");setComposeSubject("");setComposeBody("")}}>Discard</button></footer></div>}
