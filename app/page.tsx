@@ -94,7 +94,6 @@ export default function Home(){
       {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>{setView("mail");setOpenId(id);setAnswer(null)}}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
 
       {view==="mail"&&!opened&&<section className="inbox">
-        <header className="inbox-head"><div><h1>{folder}</h1><p>{list.length} conversations</p></div><button onClick={()=>notify("Inbox refreshed")}>↻</button></header>
         <div className="mail-tools"><button>□⌄</button><button>↻</button><span/><small>1–{list.length}</small><button>‹</button><button>›</button></div>
         <div className="mail-list">{list.map(m=><article key={m.id} className={m.unread?"unread":""} onClick={()=>setOpenId(m.id)}><button onClick={e=>e.stopPropagation()}>□</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[m.id]}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
       </section>}
