@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Work = { title:string; next:string; deadline?:string; instruction:string };
 type Mail = { id:number; sender:string; email:string; initials:string; tone:string; subject:string; preview:string; time:string; date:string; unread?:boolean; body:string[]; attachment?:string; work?:Work };
+type Account = {email:string;displayName:string;plan:"free"|"pro";subscriptionStatus:string|null;cancelAtPeriodEnd:boolean;currentPeriodEnd:number|null;usage:number;limit:number;hasBillingAccount:boolean};
 
 const mail:Mail[]=[
   {id:1,sender:"Priya Shah",email:"priya.shah@pacificadjusters.com",initials:"PS",tone:"lilac",subject:"Re: Claim #PA-28491 — final documentation",preview:"Thanks for sending the repair estimate. Please reply with the final paid invoice no later than August 12.",time:"10:42 AM",date:"Today, 10:42 AM",unread:true,attachment:"Repair estimate.pdf",body:["Hi Pat,","Thanks for sending the repair estimate. To complete our review, please reply with the final paid invoice no later than August 12.","Once we receive it, reimbursement of up to $2,150 will be issued within 7–10 business days.","Best,\nPriya"],work:{title:"Send final insurance documents",next:"Find and send the final paid invoice",deadline:"Aug 12",instruction:"Find the final paid invoice, attach it to a concise reply, and monitor this thread until the $2,150 reimbursement is received."}},
@@ -56,6 +57,11 @@ export default function Home(){
   const [customFolders,setCustomFolders]=useState<string[]>([]);
   const [manageFolders,setManageFolders]=useState(false);
   const [locations,setLocations]=useState<Record<number,string>>({6:"Archive"});
+  const [accountOpen,setAccountOpen]=useState(false);
+  const [account,setAccount]=useState<Account|null>(null);
+  const [accountLoading,setAccountLoading]=useState(false);
+  const [signInUrl,setSignInUrl]=useState("/signin-with-chatgpt?return_to=%2F");
+  const [aiLoading,setAiLoading]=useState(false);
   const list=useMemo(()=>{
     if(folder==="Starred")return mail.filter(m=>starred.includes(m.id)&&!locations[m.id]);
     if(folder==="Snoozed")return mail.filter(m=>locations[m.id]==="Snoozed");
@@ -68,6 +74,7 @@ export default function Home(){
   const tasks=mail.filter(m=>converted.includes(m.id));
   const task=mail.find(m=>m.id===taskId)??tasks[0];
   const work=suggestedWork(task);
+  useEffect(()=>{void loadAccount(false)},[]);
   function notify(text:string){setToast(text);window.setTimeout(()=>setToast(""),2300)}
   function convert(message:Mail){if(!converted.includes(message.id))setConverted(v=>[message.id,...v]);setTaskId(message.id);setView("tasks");setOpenId(null);notify("Task created with this email as context")}
   function chooseFolder(next:string){setView("mail");setFolder(next);setOpenId(null);setSelected([])}
@@ -109,15 +116,41 @@ export default function Home(){
     if(folder===name)chooseFolder("Inbox");
     notify(`${name} folder deleted`);
   }
-  function askEmail(e:React.FormEvent){
+  async function loadAccount(open=true){
+    if(open)setAccountOpen(true);
+    setAccountLoading(true);
+    try{
+      const response=await fetch("/api/account",{cache:"no-store"});
+      const json=await response.json() as {account?:Account;signInUrl?:string};
+      if(json.account)setAccount(json.account);
+      if(json.signInUrl)setSignInUrl(json.signInUrl);
+    }finally{setAccountLoading(false)}
+  }
+  async function beginBilling(path:string){
+    setAccountLoading(true);
+    try{
+      const response=await fetch(path,{method:"POST"});
+      const json=await response.json() as {url?:string;error?:string};
+      if(json.url){window.location.assign(json.url);return}
+      notify(json.error??"Billing is not available yet");
+    }catch{notify("Billing is not available yet")}finally{setAccountLoading(false)}
+  }
+  async function askEmail(e:React.FormEvent){
     e.preventDefault();
-    const q=search.trim().toLowerCase();
-    if(!q)return;
-    if(q.includes("hotel")||q.includes("staying")||q.includes("stay")&&q.includes("vegas"))setAnswer({text:"You’re staying at Fontainebleau Las Vegas from August 18–21. Check-in begins at 3:00 PM, and your confirmation number is FB19482.",ids:[7]});
-    else if(q.includes("flight")||q.includes("fly")||q.includes("depart"))setAnswer({text:"Your outbound flight is Delta 2127 from LAX to Las Vegas on August 18 at 10:20 AM. Your return is Delta 1674 on August 21 at 6:45 PM.",ids:[8]});
-    else if(q.includes("vegas")||q.includes("trip"))setAnswer({text:"Your Las Vegas trip runs August 18–21. You’re flying Delta and staying at Fontainebleau Las Vegas.",ids:[7,8]});
-    else if(q.includes("refund")||q.includes("money"))setAnswer({text:"Two emails involve money to recover: a $429 West Elm refund and a $680 duplicate Acme charge. Your insurance claim may reimburse up to $2,150.",ids:[1,2,3]});
-    else {const found=mail.filter(m=>`${m.sender} ${m.subject} ${m.preview} ${m.body.join(" ")}`.toLowerCase().includes(q)).slice(0,3);setAnswer({text:found.length?`I found ${found.length} relevant email${found.length===1?"":"s"}. Open a source below to review the details.`:"I couldn’t find a confident answer in these emails. Try asking about a person, trip, purchase, deadline, or confirmation.",ids:found.map(m=>m.id)});}
+    const question=search.trim();
+    if(!question||aiLoading)return;
+    setAiLoading(true);
+    try{
+      const response=await fetch("/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question,emails:mail.map(({id,sender,email,subject,date,body})=>({id,sender,email,subject,date,body}))})});
+      const json=await response.json() as {answer?:string;error?:string;signInUrl?:string;upgradeRequired?:boolean;usage?:number;limit?:number};
+      if(response.status===401){if(json.signInUrl)setSignInUrl(json.signInUrl);setAccountOpen(true);return}
+      if(json.upgradeRequired){setAccountOpen(true);await loadAccount(false);notify(json.error??"Monthly AI limit reached");return}
+      if(!response.ok||!json.answer){notify(json.error??"AI search is unavailable");return}
+      const q=question.toLowerCase();
+      const found=mail.filter(m=>`${m.sender} ${m.subject} ${m.preview} ${m.body.join(" ")}`.toLowerCase().split(/\s+/).some(word=>word.length>4&&q.includes(word))).slice(0,3);
+      setAnswer({text:json.answer,ids:found.map(m=>m.id)});
+      if(account&&typeof json.usage==="number")setAccount({...account,usage:json.usage,limit:json.limit??account.limit});
+    }catch{notify("AI search is unavailable")}finally{setAiLoading(false)}
   }
 
   return <main className="app">
@@ -144,8 +177,8 @@ export default function Home(){
       <header className="topbar">
         <div className="mobile-logo">R</div>
         <div className="tabs"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{tasks.length}</span></button></div>
-        <form className="ai-search" onSubmit={askEmail}><span>✦</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Ask anything about your email…"/><button aria-label="Ask Resolve">↑</button></form>
-        <button className="avatar">PD</button>
+        <form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail}><span>✦</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={aiLoading?"Searching your email…":"Ask anything about your email…"} disabled={aiLoading}/><button aria-label="Ask Resolve" disabled={aiLoading}>{aiLoading?"…":"↑"}</button></form>
+        <button className="avatar" aria-label="Open account and billing" onClick={()=>void loadAccount(true)}>{account?.displayName?.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"PD"}</button>
       </header>
       {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>{setView("mail");setOpenId(id);setAnswer(null)}}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
 
@@ -185,6 +218,7 @@ export default function Home(){
     </section>
 
     {compose&&<div className="compose-window"><header><b>New message</b><button aria-label="Close composer" onClick={()=>setCompose(false)}>×</button></header><label>To <input autoFocus value={composeTo} onChange={e=>setComposeTo(e.target.value)}/><button className="cc-toggle" onClick={()=>setShowCc(value=>!value)}>Cc/Bcc</button></label>{showCc&&<label>Cc <input value={composeCc} onChange={e=>setComposeCc(e.target.value)}/></label>}<label>Subject <input value={composeSubject} onChange={e=>setComposeSubject(e.target.value)}/></label><textarea aria-label="Message body" value={composeBody} onChange={e=>setComposeBody(e.target.value)}/><footer><button onClick={sendCompose}>Send</button><button className="attach-compose" onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button className="discard-compose" onClick={()=>{setCompose(false);setComposeTo("");setComposeCc("");setComposeSubject("");setComposeBody("")}}>Discard</button></footer></div>}
+    {accountOpen&&<div className="account-backdrop" onClick={()=>setAccountOpen(false)}><section className="account-panel" onClick={event=>event.stopPropagation()}><header><div><small>RESOLVE ACCOUNT</small><h2>{account?account.displayName:"Your account"}</h2>{account&&<p>{account.email}</p>}</div><button aria-label="Close account" onClick={()=>setAccountOpen(false)}>×</button></header>{accountLoading&&!account?<div className="account-loading">Loading account…</div>:account?<><div className="plan-card"><div><span className={`plan-pill ${account.plan}`}>{account.plan==="pro"?"PRO":"FREE"}</span><h3>{account.plan==="pro"?"Resolve Pro":"Free plan"}</h3><p>{account.plan==="pro"?"More AI search for a busy inbox.":"Try AI search before upgrading."}</p></div><strong>{account.plan==="pro"?"$20":"$0"}<small>/month</small></strong></div><div className="usage-card"><div><b>AI answers this month</b><span>{account.usage} of {account.limit}</span></div><progress max={account.limit} value={account.usage}/><p>Usage resets at the beginning of each month. Resolve stops at your limit—there are no surprise overage charges.</p></div>{account.plan==="pro"?<button className="billing-primary" disabled={accountLoading} onClick={()=>void beginBilling("/api/billing/portal")}>Manage billing</button>:<button className="billing-primary" disabled={accountLoading} onClick={()=>void beginBilling("/api/billing/checkout")}>Upgrade to Pro · $20/month</button>}<p className="billing-note">Payments are securely processed by Stripe. Resolve never stores your card number.</p></>:<div className="sign-in-card"><span>✦</span><h3>Sign in to protect your inbox</h3><p>An account is required for AI search, billing, and private connector access.</p><a href={signInUrl}>Sign in with ChatGPT</a></div>}</section></div>}
     {toast&&<div className="toast"><span>✓</span>{toast}</div>}
   </main>
 }

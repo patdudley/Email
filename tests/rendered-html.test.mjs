@@ -33,3 +33,20 @@ test("includes baseline mailbox actions", async () => {
     assert.match(page, new RegExp(action, "i"));
   }
 });
+
+test("enforces AI usage and paid access on the server", async () => {
+  const [billing, chat, webhook, checkout] = await Promise.all([
+    readFile(new URL("../lib/billing.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/ai/chat/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/billing/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/billing/checkout/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(billing, /FREE_MONTHLY_ANSWERS\s*=\s*30/);
+  assert.match(billing, /ai_answers\s*<\s*\?/);
+  assert.match(chat, /reserveAiAnswer/);
+  assert.match(chat, /rollbackAiAnswer/);
+  assert.match(webhook, /verifyStripeWebhook/);
+  assert.match(webhook, /stripe_events/);
+  assert.match(checkout, /mode:\s*"subscription"/);
+  assert.match(checkout, /STRIPE_PRO_PRICE_ID/);
+});

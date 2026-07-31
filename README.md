@@ -14,9 +14,18 @@ Resolve is an inbox-first email platform with tasks and AI built directly into e
 - Full email-thread, people, attachment, deadline, and instruction context for the AI agent
 - AI-prepared replies and actions with explicit approval
 - Responsive desktop and mobile layouts
+- Authenticated Resolve accounts with durable plan and usage records
+- Stripe-hosted subscription checkout and customer billing portal
+- Verified Stripe webhooks and hard server-side AI usage limits
 - Realistic demonstration data for returns, claims, reimbursements, and billing disputes
 
-This first version is a polished, local-first product prototype. It uses demonstration messages and in-memory interactions. Do not connect a personal mailbox until Gmail OAuth, encrypted token storage, Gmail API sync/send routes, webhook or history synchronization, durable user data, and integration tests are implemented.
+The mailbox itself still uses demonstration messages. Do not connect a personal mailbox until Gmail OAuth, encrypted token storage, Gmail API sync/send routes, webhook or history synchronization, and integration tests are implemented.
+
+## Billing and AI configuration
+
+Resolve Free includes 30 successful AI answers per calendar month. Resolve Pro is a flat $20 monthly subscription with 500 answers. Usage is reserved atomically on the server and returned when a model request fails.
+
+Copy `.env.example` to `.env.local` for local development and configure the corresponding production values as Sites runtime variables. Stripe should send `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed` to `/api/billing/webhook`. Never commit API or webhook secrets.
 
 ## Run locally
 
