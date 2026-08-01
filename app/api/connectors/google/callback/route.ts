@@ -2,7 +2,7 @@ import { getD1 } from "../../../../../db";
 import { sha256 } from "../../../../../lib/crypto";
 import { exchangeGoogleCode, GOOGLE_REDIRECT_PATH, saveGoogleConnection } from "../../../../../lib/google";
 
-type Profile = { emailAddress?: string };
+type Profile = { emailAddress?: string; error?: { message?: string } };
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -21,10 +21,20 @@ export async function GET(request: Request) {
     if (!tokens.refresh_token) throw new Error("Google did not return offline access");
     const profileResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", { headers: { Authorization: `Bearer ${tokens.access_token}` } });
     const profile = await profileResponse.json() as Profile;
-    if (!profileResponse.ok || !profile.emailAddress) throw new Error("Could not read Gmail profile");
+    if (!profileResponse.ok || !profile.emailAddress) {
+      const detail = profile.error?.message ?? "Could not read Gmail profile";
+      throw new Error(`Gmail profile request failed (${profileResponse.status}): ${detail}`);
+    }
     await saveGoogleConnection(record.userEmail, profile.emailAddress, tokens.refresh_token, tokens.scope ?? "");
     return Response.redirect(new URL(`/?gmail=connected`, url.origin));
-  } catch {
-    return Response.redirect(new URL(`/?gmail=failed`, url.origin));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Google connection error";
+    console.error("Google OAuth callback failed", message);
+    const reason = message.includes("Gmail profile request failed (403)")
+      ? "api-disabled"
+      : message.includes("offline access")
+        ? "offline-access"
+        : "failed";
+    return Response.redirect(new URL(`/?gmail=${reason}`, url.origin));
   }
 }

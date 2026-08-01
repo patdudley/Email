@@ -79,9 +79,30 @@ export default function Home(){
   const tasks=mail.filter(m=>converted.includes(m.id));
   const task=mail.find(m=>m.id===taskId)??tasks[0]??demoMail[0];
   const work=suggestedWork(task);
+  useEffect(()=>{
+    void loadAccount(false);
+    void loadGoogleConnection();
+    const gmailResult=new URLSearchParams(window.location.search).get("gmail");
+    const message=gmailResult==="connected"
+      ? "Gmail connected — loading your inbox"
+      : gmailResult==="api-disabled"
+        ? "Enable the Gmail API in Google Cloud, then connect again"
+        : gmailResult==="offline-access"
+          ? "Google did not provide lasting access. Remove Resolve from your Google connections, then retry"
+          : gmailResult==="failed"
+            ? "Gmail connection failed. Check Google Cloud setup and try again"
+            : gmailResult==="expired"
+              ? "The Gmail connection attempt expired. Please try again"
+              : gmailResult==="denied"
+                ? "Gmail access was not approved"
+                : gmailResult==="invalid"
+                  ? "Google returned an invalid connection response"
+                  : "";
+    if(message)notify(message);
+    if(gmailResult)window.history.replaceState({},"",window.location.pathname);
   // Initial account/connector discovery is intentionally performed once.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(()=>{void loadAccount(false);void loadGoogleConnection()},[]);
+  },[]);
   function notify(text:string){setToast(text);window.setTimeout(()=>setToast(""),2300)}
   function convert(message:Mail){if(!converted.includes(message.id))setConverted(v=>[message.id,...v]);setTaskId(message.id);setView("tasks");setOpenId(null);notify("Task created with this email as context")}
   function chooseFolder(next:string){setView("mail");setFolder(next);setOpenId(null);setSelected([]);if(gmail.connected)void loadGmail(next)}
