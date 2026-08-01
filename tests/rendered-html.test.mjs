@@ -51,12 +51,15 @@ test("includes baseline mailbox actions", async () => {
     assert.match(page, new RegExp(`data-tooltip="${tooltip}"`, "i"));
   }
   assert.match(page, /referrerPolicy="no-referrer"/);
-  assert.match(page, /Frequently emailed/);
+  assert.match(page, /Frequently contacted/);
+  assert.match(page, /Search anyone in Gmail/);
+  assert.match(page, /scheduleRecipientSearch/);
   assert.match(page, /aria-autocomplete="list"/);
   assert.match(page, /handleRecipientKey/);
-  assert.match(recipients, /labelIds:\s*"SENT"/);
-  assert.match(recipients, /maxResults:\s*"100"/);
-  assert.match(recipients, /format=metadata&metadataHeaders=To/);
+  assert.match(recipients, /maxResults:\s*escapedSearch\s*\?\s*"50"\s*:\s*"200"/);
+  assert.match(recipients, /format=metadata&metadataHeaders=From&metadataHeaders=To/);
+  assert.match(recipients, /message\.labelIds\?\.includes\("SENT"\)/);
+  assert.ok(recipients.includes('{from:"${escapedSearch}" to:"${escapedSearch}"}'));
   assert.match(recipients, /b\.count - a\.count/);
 });
 

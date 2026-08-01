@@ -18,28 +18,38 @@ function recipientsFromHeader(value: string): Array<{ name: string; email: strin
   return recipients;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getChatGPTUser();
   if (!user) return Response.json({ error: "Authentication required" }, { status: 401 });
   try {
-    const params = new URLSearchParams({ labelIds: "SENT", maxResults: "100", q: "newer_than:2y" });
+    const search = new URL(request.url).searchParams.get("q")?.trim().slice(0, 100) ?? "";
+    const escapedSearch = search.replace(/[{}"\\]/g, " ").replace(/\s+/g, " ").trim();
+    const gmailQuery = escapedSearch ? `{from:"${escapedSearch}" to:"${escapedSearch}"}` : "newer_than:2y";
+    const params = new URLSearchParams({ maxResults: escapedSearch ? "50" : "200", q: gmailQuery });
     const list = await gmailFetch<MessageList>(user.email, `/messages?${params}`);
     const messages: GmailMessage[] = [];
     const ids = list.messages ?? [];
     for (let index = 0; index < ids.length; index += 20) {
       messages.push(...await Promise.all(ids.slice(index, index + 20).map(({ id }) =>
-        gmailFetch<GmailMessage>(user.email, `/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=To`),
+        gmailFetch<GmailMessage>(user.email, `/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=To`),
       )));
     }
     const counts = new Map<string, Recipient>();
     for (const message of messages) {
-      for (const recipient of recipientsFromHeader(header(message, "To"))) {
+      const sent = message.labelIds?.includes("SENT") ?? false;
+      const correspondents = recipientsFromHeader(header(message, sent ? "To" : "From"));
+      for (const recipient of correspondents) {
         if (recipient.email === user.email.toLowerCase()) continue;
         const current = counts.get(recipient.email);
-        counts.set(recipient.email, current ? { ...current, count: current.count + 1 } : { ...recipient, count: 1 });
+        const weight = sent ? 2 : 1;
+        counts.set(recipient.email, current ? { ...current, name: current.name.includes("@") ? recipient.name : current.name, count: current.count + weight } : { ...recipient, count: weight });
       }
     }
-    const recipients = [...counts.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)).slice(0, 30);
+    const needle = escapedSearch.toLowerCase();
+    const recipients = [...counts.values()]
+      .filter(recipient => !needle || recipient.name.toLowerCase().includes(needle) || recipient.email.includes(needle))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .slice(0, escapedSearch ? 50 : 150);
     return Response.json({ recipients }, { headers: { "Cache-Control": "private, max-age=300" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not load frequent recipients" }, { status: 502 });
