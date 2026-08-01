@@ -50,3 +50,20 @@ test("enforces AI usage and paid access on the server", async () => {
   assert.match(checkout, /mode:\s*"subscription"/);
   assert.match(checkout, /STRIPE_PRO_PRICE_ID/);
 });
+
+test("protects Gmail authorization and connector credentials", async () => {
+  const [start, callback, cryptoSource, googleSource, page] = await Promise.all([
+    readFile(new URL("../app/api/connectors/google/start/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/connectors/google/callback/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/crypto.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/google.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(start, /access_type:\s*"offline"/);
+  assert.match(start, /sha256\(state\)/);
+  assert.match(googleSource, /gmail\.modify/);
+  assert.match(callback, /DELETE FROM oauth_states/);
+  assert.match(callback, /saveGoogleConnection/);
+  assert.match(cryptoSource, /AES-GCM/);
+  assert.match(page, /\/api\/connectors\/google\/start/);
+});

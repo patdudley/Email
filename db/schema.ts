@@ -32,3 +32,21 @@ export const stripeEvents = sqliteTable("stripe_events", {
   eventType: text("event_type").notNull(),
   processedAt: integer("processed_at").notNull(),
 });
+
+export const oauthStates = sqliteTable("oauth_states", {
+  stateHash: text("state_hash").primaryKey(),
+  userEmail: text("user_email").notNull().references(() => users.email, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const connectorAccounts = sqliteTable("connector_accounts", {
+  userEmail: text("user_email").notNull().references(() => users.email, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  providerEmail: text("provider_email").notNull(),
+  encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
+  scopes: text("scopes").notNull(),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [primaryKey({ columns: [table.userEmail, table.provider] })]);

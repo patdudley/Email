@@ -19,13 +19,15 @@ Resolve is an inbox-first email platform with tasks and AI built directly into e
 - Verified Stripe webhooks and hard server-side AI usage limits
 - Realistic demonstration data for returns, claims, reimbursements, and billing disputes
 
-The mailbox itself still uses demonstration messages. Do not connect a personal mailbox until Gmail OAuth, encrypted token storage, Gmail API sync/send routes, webhook or history synchronization, and integration tests are implemented.
+Resolve supports an owner-only Gmail test connection using Google OAuth, encrypted refresh-token storage, live folder loading, send/reply/forward, and core mailbox actions. The UI falls back to demonstration messages until Gmail is connected. Broader public rollout still requires Google restricted-scope verification, a security assessment where applicable, privacy-policy review, push/history synchronization, and expanded integration testing.
 
 ## Billing and AI configuration
 
 Resolve Free includes 30 successful AI answers per calendar month. Resolve Pro is a flat $20 monthly subscription with 500 answers. Usage is reserved atomically on the server and returned when a model request fails.
 
 Copy `.env.example` to `.env.local` for local development and configure the corresponding production values as Sites runtime variables. Stripe should send `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed` to `/api/billing/webhook`. Never commit API or webhook secrets.
+
+For Gmail, enable the Gmail API and register `/api/connectors/google/callback` on the deployed origin as an authorized redirect URI. Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and a random 32-byte base64 `CONNECTOR_ENCRYPTION_KEY` as hosted environment values. Resolve requests `gmail.modify`, validates a single-use OAuth state, requests offline access, and encrypts refresh tokens with AES-GCM before writing them to D1.
 
 ## Run locally
 
