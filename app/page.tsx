@@ -7,6 +7,7 @@ type Account = {email:string;displayName:string;plan:"free"|"pro";subscriptionSt
 type TaskRecord = {id:string;title:string;description:string;deadline:string|null;recurrenceType:"one_time"|"recurring";recurrenceEvery:number|null;recurrenceUnit:"day"|"week"|"month"|null;status:string;sourceThreadId:string|null;createdAt:number;updatedAt:number};
 type TaskMessage = {id?:string;role:"user"|"assistant";content:string;sources?:Array<{url:string;title:string}>;createdAt:number};
 type RecipientSuggestion = {name:string;email:string;count:number};
+type SearchPreview = {contacts:RecipientSuggestion[];emails:Mail[]};
 type OutgoingAttachment = {id:string;name:string;type:string;size:number;data:string};
 
 function EmailImage({image}:{image:{src:string;alt:string}}){
@@ -62,6 +63,11 @@ export default function Home(){
   const [folder,setFolder]=useState("Inbox");
   const [openId,setOpenId]=useState<string|number|null>(null);
   const [search,setSearch]=useState("");
+  const [searchPreview,setSearchPreview]=useState<SearchPreview>({contacts:[],emails:[]});
+  const [searchPreviewOpen,setSearchPreviewOpen]=useState(false);
+  const [searchPreviewLoading,setSearchPreviewLoading]=useState(false);
+  const searchPreviewTimer=useRef<number|null>(null);
+  const searchPreviewRequestId=useRef(0);
   const [compose,setCompose]=useState(false);
   const [replying,setReplying]=useState(false);
   const [replyMode,setReplyMode]=useState<"reply"|"replyAll"|"forward">("reply");
@@ -357,10 +363,51 @@ export default function Home(){
       notify(json.error??"Billing is not available yet");
     }catch{notify("Billing is not available yet")}finally{setAccountLoading(false)}
   }
-  async function askEmail(e:React.FormEvent){
-    e.preventDefault();
-    const question=search.trim();
+  function localSearchSuggestions(query:string):SearchPreview{
+    const needle=query.trim().toLowerCase();
+    if(!needle)return {contacts:[],emails:[]};
+    const emails=mail.filter(message=>`${message.sender} ${message.email} ${message.subject} ${message.preview}`.toLowerCase().includes(needle)).slice(0,8);
+    const contacts=new Map<string,RecipientSuggestion>();
+    for(const message of mail){
+      if(!`${message.sender} ${message.email}`.toLowerCase().includes(needle))continue;
+      const email=message.email.trim().toLowerCase();if(!email||email===gmail.email?.toLowerCase())continue;
+      const current=contacts.get(email);contacts.set(email,current?{...current,count:current.count+1}:{name:message.sender,email,count:1});
+    }
+    return {contacts:[...contacts.values()].sort((a,b)=>b.count-a.count).slice(0,6),emails};
+  }
+  function scheduleSearchPreview(value:string){
+    setSearch(value);
+    const query=value.trim();
+    if(searchPreviewTimer.current)window.clearTimeout(searchPreviewTimer.current);
+    if(!query){setSearchPreviewOpen(false);setSearchPreview({contacts:[],emails:[]});setSearchPreviewLoading(false);return}
+    setSearchPreview(localSearchSuggestions(query));setSearchPreviewOpen(true);
+    if(!gmail.connected||query.length<2){setSearchPreviewLoading(false);return}
+    setSearchPreviewLoading(true);
+    searchPreviewTimer.current=window.setTimeout(async()=>{
+      const requestId=++searchPreviewRequestId.current;
+      try{
+        const response=await fetch(`/api/gmail/suggestions?q=${encodeURIComponent(query)}`,{cache:"no-store"});
+        const json=await response.json() as {contacts?:RecipientSuggestion[];emails?:Mail[];error?:string};
+        if(!response.ok)throw new Error(json.error??"Could not load suggestions");
+        if(requestId!==searchPreviewRequestId.current)return;
+        const local=localSearchSuggestions(query);
+        const contacts=new Map<string,RecipientSuggestion>();
+        for(const contact of [...(json.contacts??[]),...local.contacts])if(!contacts.has(contact.email))contacts.set(contact.email,contact);
+        const emails=new Map<string,Mail>();
+        for(const message of [...(json.emails??[]),...local.emails])if(!emails.has(String(message.id)))emails.set(String(message.id),message);
+        setSearchPreview({contacts:[...contacts.values()].slice(0,6),emails:[...emails.values()].slice(0,8)});
+      }catch{ /* Local suggestions remain available if Gmail's preview request fails. */ }
+      finally{if(requestId===searchPreviewRequestId.current)setSearchPreviewLoading(false)}
+    },90);
+  }
+  function openSearchSuggestion(message:Mail){
+    setSearchPreviewOpen(false);setAnswer(null);setView("mail");setOpenId(message.id);
+    setLiveMail(current=>current.some(item=>String(item.id)===String(message.id))?current.map(item=>String(item.id)===String(message.id)?{...item,...message}:item):[message,...current]);
+    if(gmail.connected)void loadGmailThread(String(message.threadId??message.id));
+  }
+  async function runEmailSearch(question:string){
     if(!question||aiLoading)return;
+    setSearchPreviewOpen(false);
     setAiLoading(true);
     try{
       const searchResponse=await fetch("/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question,searchOnly:true})});
@@ -378,6 +425,7 @@ export default function Home(){
       setAnswer({text:json.answer,ids:matches.map(message=>message.id),query:question,count:matches.length});if(account&&typeof json.usage==="number")setAccount({...account,usage:json.usage,limit:json.limit??account.limit});
     }catch{notify("AI search is unavailable")}finally{setAiLoading(false)}
   }
+  function askEmail(e:React.FormEvent){e.preventDefault();void runEmailSearch(search.trim())}
 
   return <main className="app">
     <aside className="sidebar">
@@ -403,7 +451,18 @@ export default function Home(){
       <header className="topbar">
         <div className="mobile-logo">R</div>
         <div className="tabs"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{savedTasks.length}</span></button></div>
-        <form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail}><span>✦</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={aiLoading?"Searching your email…":"Ask anything about your email…"} disabled={aiLoading}/><button aria-label="Ask Resolve" disabled={aiLoading}>{aiLoading?"…":"↑"}</button></form>
+        <form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail} onBlur={()=>window.setTimeout(()=>setSearchPreviewOpen(false),120)}>
+          <span>✦</span>
+          <input value={search} onChange={e=>scheduleSearchPreview(e.target.value)} onFocus={()=>search.trim()&&setSearchPreviewOpen(true)} onKeyDown={e=>{if(e.key==="Escape")setSearchPreviewOpen(false)}} placeholder={aiLoading?"Searching your email…":"Ask anything about your email…"} disabled={aiLoading} role="combobox" aria-autocomplete="list" aria-expanded={searchPreviewOpen} aria-controls="email-search-suggestions"/>
+          <button aria-label="Ask Resolve" disabled={aiLoading}>{aiLoading?"…":"↑"}</button>
+          {searchPreviewOpen&&search.trim()&&<div className="search-preview" id="email-search-suggestions" role="listbox">
+            {searchPreview.contacts.length>0&&<section><b>People</b>{searchPreview.contacts.map(contact=><button type="button" role="option" aria-selected="false" key={contact.email} onMouseDown={e=>e.preventDefault()} onClick={()=>{setSearch(contact.email);void runEmailSearch(contact.email)}}><span className="search-contact-avatar">{contact.name.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()}</span><div><strong>{contact.name}</strong><small>{contact.email}</small></div></button>)}</section>}
+            {searchPreview.emails.length>0&&<section><b>Recent matching emails</b>{searchPreview.emails.map(message=><button type="button" role="option" aria-selected="false" key={message.id} onMouseDown={e=>e.preventDefault()} onClick={()=>openSearchSuggestion(message)}><span className="search-mail-icon">✉</span><div><strong>{message.subject}</strong><small>{message.sender} · {message.preview}</small></div><time>{message.time}</time></button>)}</section>}
+            {searchPreviewLoading&&!searchPreview.contacts.length&&!searchPreview.emails.length&&<p>Searching Gmail…</p>}
+            {!searchPreviewLoading&&!searchPreview.contacts.length&&!searchPreview.emails.length&&<p>No instant matches yet. Search all email below.</p>}
+            <button type="button" className="search-all-email" onMouseDown={e=>e.preventDefault()} onClick={()=>void runEmailSearch(search.trim())}><span>⌕</span><strong>Search all email for “{search.trim()}”</strong><kbd>Enter</kbd></button>
+          </div>}
+        </form>
         <button className="avatar" aria-label="Open account and billing" onClick={()=>void loadAccount(true)}>{account?.displayName?.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"PD"}</button>
       </header>
       {answer&&<section className={`ai-answer ${searchMode?"search-summary":""}`}><header><span>✦</span><b>{searchMode?`Summary of ${answer.count??0} recent matching email${answer.count===1?"":"s"}`:"Resolve"}</b><button aria-label={searchMode?"Clear email search":"Close answer"} onClick={()=>searchMode?clearEmailSearch():setAnswer(null)}>×</button></header><p>{answer.text}</p>{!searchMode&&answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id);return m?<button key={id} onClick={()=>openMessage(m)}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>:null})}</div>}</section>}

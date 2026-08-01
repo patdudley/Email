@@ -29,10 +29,11 @@ test("renders the Resolve application shell", async () => {
 });
 
 test("includes baseline mailbox actions", async () => {
-  const [page, gmailMessage, recipients, sendRoute] = await Promise.all([
+  const [page, gmailMessage, recipients, suggestions, sendRoute] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/gmail-message.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/gmail/recipients/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/gmail/suggestions/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/gmail/send/route.ts", import.meta.url), "utf8"),
   ]);
   for (const action of ["Archive", "Spam", "Trash", "Forward", "Reply all", "Mark unread", "Snooze"]) {
@@ -62,6 +63,16 @@ test("includes baseline mailbox actions", async () => {
   assert.match(recipients, /message\.labelIds\?\.includes\("SENT"\)/);
   assert.ok(recipients.includes('{from:"${escapedSearch}" to:"${escapedSearch}"}'));
   assert.match(recipients, /b\.count - a\.count/);
+  assert.match(page, /Recent matching emails/);
+  assert.match(page, /Search all email for/);
+  assert.match(page, /localSearchSuggestions/);
+  assert.match(page, /scheduleSearchPreview/);
+  assert.match(page, /\/api\/gmail\/suggestions/);
+  assert.match(page, /},90\)/);
+  assert.match(suggestions, /getChatGPTUser/);
+  assert.match(suggestions, /maxResults:\s*"8"/);
+  assert.match(suggestions, /threads\.map\(summarizeThread\)/);
+  assert.match(suggestions, /emailAddresses\(header\(message, name\)\)/);
   for (const capability of ["Bold", "Italic", "Underline", "Bulleted list", "Numbered list", "Insert link"]) assert.match(page, new RegExp(capability));
   assert.match(page, /contentEditable/);
   assert.match(page, /addAttachments/);

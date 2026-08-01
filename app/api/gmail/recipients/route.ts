@@ -1,22 +1,9 @@
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { gmailFetch } from "../../../../lib/google";
-import { type GmailMessage, header } from "../../../../lib/gmail-message";
+import { emailAddresses, type GmailMessage, header } from "../../../../lib/gmail-message";
 
 type MessageList = { messages?: Array<{ id: string }> };
 type Recipient = { name: string; email: string; count: number };
-
-function recipientsFromHeader(value: string): Array<{ name: string; email: string }> {
-  const recipients: Array<{ name: string; email: string }> = [];
-  const seen = new Set<string>();
-  for (const match of value.matchAll(/(?:"([^"]+)"|([^,<"]+?))?\s*<([^<>\s@]+@[^<>\s]+)>|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi)) {
-    const email = (match[3] ?? match[4] ?? "").replace(/[;,]+$/, "").trim().toLowerCase();
-    if (!email || seen.has(email)) continue;
-    seen.add(email);
-    const rawName = (match[1] ?? match[2] ?? "").trim().replace(/^['"]|['"]$/g, "");
-    recipients.push({ name: rawName || email.split("@")[0], email });
-  }
-  return recipients;
-}
 
 export async function GET(request: Request) {
   const user = await getChatGPTUser();
@@ -37,7 +24,7 @@ export async function GET(request: Request) {
     const counts = new Map<string, Recipient>();
     for (const message of messages) {
       const sent = message.labelIds?.includes("SENT") ?? false;
-      const correspondents = recipientsFromHeader(header(message, sent ? "To" : "From"));
+      const correspondents = emailAddresses(header(message, sent ? "To" : "From"));
       for (const recipient of correspondents) {
         if (recipient.email === user.email.toLowerCase()) continue;
         const current = counts.get(recipient.email);

@@ -103,9 +103,22 @@ export function sanitizeEmailHtml(html: string): string {
 }
 
 export function displayName(from: string): { name: string; email: string } {
-  const match = from.match(/^\s*"?([^"<]*)"?\s*<([^>]+)>/);
-  if (match) return { name: match[1].trim() || match[2], email: match[2] };
+  const parsed = emailAddresses(from)[0];
+  if (parsed) return parsed;
   return { name: from.split("@")[0] || "Unknown sender", email: from };
+}
+
+export function emailAddresses(value: string): Array<{ name: string; email: string }> {
+  const recipients: Array<{ name: string; email: string }> = [];
+  const seen = new Set<string>();
+  for (const match of value.matchAll(/(?:"([^"]+)"|([^,<"]+?))?\s*<([^<>\s@]+@[^<>\s]+)>|([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi)) {
+    const email = (match[3] ?? match[4] ?? "").replace(/[;,]+$/, "").trim().toLowerCase();
+    if (!email || seen.has(email)) continue;
+    seen.add(email);
+    const rawName = (match[1] ?? match[2] ?? "").trim().replace(/^['"]|['"]$/g, "");
+    recipients.push({ name: rawName || email.split("@")[0], email });
+  }
+  return recipients;
 }
 
 export function summarizeThread(thread: GmailThread) {
