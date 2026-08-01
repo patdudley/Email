@@ -21,8 +21,9 @@ export async function GET(request: Request) {
       return Response.json({ thread: summarizeDetailedThread(thread) });
     }
     const folder = url.searchParams.get("folder") ?? "Inbox";
+    const query = url.searchParams.get("query")?.trim().slice(0, 500) ?? "";
     const pageToken = url.searchParams.get("pageToken")?.trim() ?? "";
-    const config = folderQueries[folder] ?? { label: folder };
+    const config = query ? { q: query } : (folderQueries[folder] ?? { label: folder });
     const params = new URLSearchParams({ maxResults: "50" });
     if (pageToken) params.set("pageToken", pageToken.slice(0, 1_000));
     if (config.label) params.set("labelIds", config.label);

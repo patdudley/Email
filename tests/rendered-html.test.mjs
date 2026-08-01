@@ -91,7 +91,14 @@ test("supports scrollable 50-message Gmail pages and bounded AI context", async 
   assert.match(css, /\.mail-list\{[^}]*overflow-y:auto/);
   assert.match(chat, /compactEmailContext/);
   assert.match(chat, /searchGmail/);
-  assert.match(chat, /maxResults:\s*"30"/);
+  assert.match(chat, /maxResults:\s*"50"/);
+  assert.match(chat, /gmailSearchQuery/);
+  assert.match(chat, /matches:\s*accountMatches/);
+  assert.match(threads, /url\.searchParams\.get\("query"\)/);
+  assert.match(page, /Summary of.*matching email/);
+  assert.match(page, /Results for/);
+  assert.match(page, /loadGmailSearchPage/);
+  assert.match(css, /\.ai-answer\.search-summary/);
   assert.match(chat, /42_000/);
   assert.doesNotMatch(chat, /Email context is too large/);
   assert.match(threads, /threadId/);
