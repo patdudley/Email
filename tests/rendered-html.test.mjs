@@ -122,10 +122,15 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(page, /Recurring/);
   assert.match(page, /Recurrence interval/);
   assert.match(page, /task-conversation/);
+  assert.match(page, /Completed/);
+  assert.match(page, /Mark complete/);
+  assert.match(page, /Reopen/);
   assert.match(schema, /sqliteTable\("tasks"/);
   assert.match(schema, /sqliteTable\("task_messages"/);
   assert.match(schema, /recurrenceType/);
   assert.match(taskRoute, /WHERE user_email=\?/);
+  assert.match(taskRoute, /export async function PATCH/);
+  assert.match(taskRoute, /UPDATE tasks SET status=\?, updated_at=\? WHERE id=\? AND user_email=\?/);
   assert.match(taskChat, /WHERE id=\? AND user_email=\?/);
   assert.match(taskChat, /web_search_preview/);
   assert.match(taskChat, /reserveAiAnswer/);

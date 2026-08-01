@@ -51,6 +51,19 @@ export async function POST(request:Request) {
   return Response.json({task},{status:201});
 }
 
+export async function PATCH(request:Request) {
+  const user=await getChatGPTUser();
+  if(!user)return Response.json({error:"Sign in to update tasks",signInUrl:chatGPTSignInPath("/")},{status:401});
+  const body=await request.json() as {id?:string;status?:string};
+  const id=body.id?.trim()??"";
+  const status=body.status==="completed"?"completed":body.status==="active"?"active":"";
+  if(!id||!status)return Response.json({error:"Task id and valid status are required"},{status:400});
+  const updatedAt=Math.floor(Date.now()/1000);
+  const result=await getD1().prepare("UPDATE tasks SET status=?, updated_at=? WHERE id=? AND user_email=?").bind(status,updatedAt,id,user.email.toLowerCase()).run();
+  if(!result.meta.changes)return Response.json({error:"Task not found"},{status:404});
+  return Response.json({id,status,updatedAt});
+}
+
 export async function DELETE(request:Request) {
   const user=await getChatGPTUser();
   if(!user)return Response.json({error:"Sign in to delete tasks"},{status:401});
