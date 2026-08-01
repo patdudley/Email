@@ -36,6 +36,27 @@ function EmailImage({image}:{image:{src:string;alt:string}}){
   return <img src={image.src} alt={image.alt} loading="lazy" referrerPolicy="no-referrer"/>;
 }
 
+function imageUrlsInText(text:string):string[]{
+  return [...text.matchAll(/View image:\s*\((https?:\/\/[^)\s]+)\)/gi)].map(match=>match[1].replace(/&amp;/gi,"&"));
+}
+
+function EmailBodyText({text}:{text:string}){
+  const matches=[...text.matchAll(/View image:\s*\((https?:\/\/[^)\s]+)\)/gi)];
+  if(!matches.length)return <p>{text.split("\n").map((line,index,lines)=><span key={index}>{line}{index<lines.length-1&&<br/>}</span>)}</p>;
+  const content:Array<{kind:"text";value:string}|{kind:"image";value:string}>=[];
+  let cursor=0;
+  for(const match of matches){
+    const index=match.index??0;
+    if(index>cursor)content.push({kind:"text",value:text.slice(cursor,index)});
+    content.push({kind:"image",value:match[1].replace(/&amp;/gi,"&")});
+    cursor=index+match[0].length;
+  }
+  if(cursor<text.length)content.push({kind:"text",value:text.slice(cursor)});
+  return <>{content.map((item,index)=>item.kind==="image"
+    ? <div className="inline-email-image" key={`${item.value}-${index}`}><EmailImage image={{src:item.value,alt:"Email image"}}/></div>
+    : item.value.trim()&&<p key={index}>{item.value.replace(/^\s*Caption:\s*$/gim,"").split("\n").map((line,lineIndex,lines)=><span key={lineIndex}>{line}{lineIndex<lines.length-1&&<br/>}</span>)}</p>)}</>;
+}
+
 export default function Home(){
   const [view,setView]=useState<"mail"|"tasks"|"connectors">("mail");
   const [folder,setFolder]=useState("Inbox");
@@ -243,8 +264,8 @@ export default function Home(){
         <div className="message">
           <h1>{opened.subject}</h1>
           <div className="sender"><span className={`initials ${opened.tone}`}>{opened.initials}</span><div><b>{opened.sender}</b><p>{opened.email} · to me</p></div><time>{opened.date}</time></div>
-          <div className="copy">{opened.body.map((p,i)=><p key={i}>{p.split("\n").map((line,j)=><span key={j}>{line}{j<p.split("\n").length-1&&<br/>}</span>)}</p>)}</div>
-          {opened.images&&opened.images.length>0&&<div className="email-images">{opened.images.map((image,index)=><EmailImage key={`${image.src}-${index}`} image={image}/>)}</div>}
+          <div className="copy">{opened.body.map((part,index)=><EmailBodyText key={index} text={part}/>)}</div>
+          {opened.images&&opened.images.filter(image=>!opened.body.flatMap(imageUrlsInText).includes(image.src)).length>0&&<div className="email-images">{opened.images.filter(image=>!opened.body.flatMap(imageUrlsInText).includes(image.src)).map((image,index)=><EmailImage key={`${image.src}-${index}`} image={image}/>)}</div>}
           {opened.attachment&&<button className="attachment" onClick={()=>notify(`${opened.attachment} downloaded`)}><span>PDF</span><div><b>{opened.attachment}</b><small>248 KB</small></div><strong>↓</strong></button>}
           {!replying?<div className="reply-actions"><button onClick={()=>startReply("reply")}>↩ Reply</button><button onClick={()=>startReply("replyAll")}>↩ Reply all</button><button onClick={()=>startReply("forward")}>→ Forward</button><button onClick={()=>{setReplyMode("reply");setReply(`Hi ${opened.sender.split(" ")[0]},\n\nThanks for the update. I’ll take care of this and follow up shortly.\n\nBest,\nPat`);setReplying(true)}}>✦ Draft reply</button></div>:<div className="reply-box"><div>{replyMode==="forward"?<>To <input aria-label="Forward recipient" autoFocus value={forwardTo} onChange={e=>setForwardTo(e.target.value)} placeholder="Recipient email"/></>:<>To <b>{opened.sender}</b>{replyMode==="replyAll"&&<span> · all recipients</span>}</>}</div><textarea autoFocus={replyMode!=="forward"} value={reply} onChange={e=>setReply(e.target.value)}/><footer><button className="send" onClick={sendReply}>{replyMode==="forward"?"Forward":"Send"}</button><button onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button onClick={()=>{setReplying(false);setReply("")}}>Discard</button></footer></div>}
         </div>

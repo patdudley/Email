@@ -41,6 +41,8 @@ test("includes baseline mailbox actions", async () => {
   assert.match(gmailMessage, /\.\.\.body\.flatMap\(remoteImagesFromText\)/);
   assert.match(gmailMessage, /\^https\?:\\\/\\\//);
   assert.match(page, /className="email-images"/);
+  assert.match(page, /className="inline-email-image"/);
+  assert.match(page, /function EmailBodyText/);
   assert.match(page, /referrerPolicy="no-referrer"/);
 });
 
