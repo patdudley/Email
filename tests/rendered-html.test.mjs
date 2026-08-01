@@ -23,7 +23,8 @@ test("renders the Resolve application shell", async () => {
   assert.match(html, /<title>Resolve — Finish the work buried in your email<\/title>/i);
   assert.match(html, /Ask anything about your email/i);
   assert.match(html, /Connectors/i);
-  assert.match(html, /Gmail not connected/i);
+  assert.match(html, /Loading your Gmail inbox/i);
+  assert.doesNotMatch(html, /Priya Shah|West Elm|Acme Supply|HealthCo Claims|Fontainebleau/i);
   assert.doesNotMatch(html, /Your site is taking shape|codex-preview/i);
 });
 

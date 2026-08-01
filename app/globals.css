@@ -121,3 +121,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline-color:rg
 .folder-item .delete-folder,.mail-tools .bulk-action.danger{color:#bd0b8f}
 .folder-item .delete-folder{background:#fff0fb}
 .folder-item .delete-folder:hover{background:#fce1f5}
+
+/* Real-account loading and empty states; sample inbox content is never rendered. */
+.mail-loading-state{flex:1;min-height:260px;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted);position:relative}
+.mail-loading-state>span{width:9px;height:9px;border-radius:50%;background:var(--ocean);animation:mail-pulse 1.05s ease-in-out infinite}
+.mail-loading-state>span:nth-child(2){animation-delay:.12s;background:var(--medium-blue)}
+.mail-loading-state>span:nth-child(3){animation-delay:.24s;background:var(--pink)}
+.mail-loading-state>p{position:absolute;top:calc(50% + 24px);margin:0;font-size:12px}
+@keyframes mail-pulse{0%,70%,100%{opacity:.3;transform:translateY(0)}35%{opacity:1;transform:translateY(-6px)}}
+.empty-task-state{display:grid;place-content:center;justify-items:center;text-align:center;padding:40px;color:var(--muted)}
+.empty-task-state>span{width:42px;height:42px;border-radius:13px;background:#fff0fb;color:var(--pink);display:grid;place-items:center;font-size:17px}
+.empty-task-state h2{margin:14px 0 6px;color:var(--navy);font-size:20px}
+.empty-task-state p{max-width:390px;margin:0;font-size:13px;line-height:1.55}

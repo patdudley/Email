@@ -6,28 +6,6 @@ type Work = { title:string; next:string; deadline?:string; instruction:string };
 type Mail = { id:string|number; threadId?:string; sender:string; email:string; initials:string; tone:string; subject:string; preview:string; time:string; date:string; unread?:boolean; starred?:boolean; body:string[]; html?:string; images?:Array<{src:string;alt:string}>; attachment?:string; work?:Work };
 type Account = {email:string;displayName:string;plan:"free"|"pro";subscriptionStatus:string|null;cancelAtPeriodEnd:boolean;currentPeriodEnd:number|null;usage:number;limit:number;hasBillingAccount:boolean};
 
-const demoMail:Mail[]=[
-  {id:1,sender:"Priya Shah",email:"priya.shah@pacificadjusters.com",initials:"PS",tone:"lilac",subject:"Re: Claim #PA-28491 — final documentation",preview:"Thanks for sending the repair estimate. Please reply with the final paid invoice no later than August 12.",time:"10:42 AM",date:"Today, 10:42 AM",unread:true,attachment:"Repair estimate.pdf",body:["Hi Pat,","Thanks for sending the repair estimate. To complete our review, please reply with the final paid invoice no later than August 12.","Once we receive it, reimbursement of up to $2,150 will be issued within 7–10 business days.","Best,\nPriya"],work:{title:"Send final insurance documents",next:"Find and send the final paid invoice",deadline:"Aug 12",instruction:"Find the final paid invoice, attach it to a concise reply, and monitor this thread until the $2,150 reimbursement is received."}},
-  {id:2,sender:"West Elm",email:"support@westelm.com",initials:"WE",tone:"sand",subject:"Your return label is ready",preview:"Your prepaid UPS return label is attached. Please ship your damaged item by August 3.",time:"9:18 AM",date:"Today, 9:18 AM",unread:true,attachment:"UPS return label.pdf",body:["Hi Pat,","Your prepaid UPS return label for order #WE938104 is attached. Please ship your damaged item by August 3 to remain eligible for a full refund of $429.","We’ll email you once your return is received."],work:{title:"Ship West Elm return",next:"Drop the package at UPS",deadline:"Aug 3",instruction:"Keep the label and order details attached, remind me to ship the item, then monitor this thread until the $429 refund arrives."}},
-  {id:3,sender:"Marcus at Acme Supply",email:"marcus@acmesupply.co",initials:"MA",tone:"blue",subject:"Re: Duplicate charge on invoice #1048",preview:"I’m looking into this with accounts receivable and should have an update shortly.",time:"Yesterday",date:"Yesterday, 3:56 PM",body:["Hi Pat,","I’m looking into this with our accounts receivable team. I agree that the $680 equipment line appears twice.","I’ll circle back as soon as I have approval for the credit.","Marcus"],work:{title:"Follow up on duplicate charge",next:"Ask Marcus for the overdue update",instruction:"Draft a friendly but firm follow-up referencing invoice #1048. Keep this open until the $680 credit is verified."}},
-  {id:4,sender:"HealthCo Claims",email:"claims@healthco.com",initials:"HC",tone:"mint",subject:"Claim HC-77120 received",preview:"We received your dental reimbursement claim. Most claims are processed within 14 days.",time:"Mon",date:"Monday, 11:12 AM",body:["We received your out-of-network dental reimbursement claim HC-77120.","Most claims are processed within 14 calendar days. We will contact you if more documentation is required."],work:{title:"Track dental reimbursement",next:"Wait for the explanation of benefits",deadline:"Aug 21",instruction:"Monitor this claim. If there is no update by August 7, prepare a short status request."}},
-  {id:5,sender:"Maya Chen",email:"maya@northstarstudio.com",initials:"MC",tone:"rose",subject:"Updated launch timeline",preview:"Can you confirm that Tuesday at 2 PM still works for the stakeholder review?",time:"Mon",date:"Monday, 8:34 AM",unread:true,body:["Hey Pat,","I moved the review milestone to Tuesday. Can you confirm that 2 PM still works for the stakeholder review?","Thanks!\nMaya"],work:{title:"Confirm stakeholder review",next:"Reply to confirm Tuesday at 2 PM",deadline:"Aug 4",instruction:"Check my calendar, draft a confirmation, and add the event after Maya replies."}},
-  {id:6,sender:"Figma",email:"billing@figma.com",initials:"F",tone:"peach",subject:"Your receipt for July",preview:"Your July receipt for $45.00 is attached and ready to download.",time:"Sun",date:"Sunday, 6:03 AM",attachment:"Figma July receipt.pdf",body:["Thanks for your payment.","Your July receipt for $45.00 is attached and ready to download."]},
-  {id:7,sender:"Fontainebleau Las Vegas",email:"reservations@fontainebleaulasvegas.com",initials:"FL",tone:"blue",subject:"Your Las Vegas stay is confirmed — confirmation FB19482",preview:"We look forward to welcoming you August 18–21. Check-in begins at 3:00 PM.",time:"Jul 22",date:"July 22, 2:14 PM",body:["Your stay is confirmed.","Fontainebleau Las Vegas\nAugust 18–21\nCheck-in: 3:00 PM\nCheck-out: 11:00 AM","Confirmation number: FB19482"]},
-  {id:8,sender:"Delta Air Lines",email:"DeltaAirLines@t.delta.com",initials:"DL",tone:"lilac",subject:"Flight receipt and itinerary — Las Vegas",preview:"Los Angeles to Las Vegas on August 18. Return flight departs August 21.",time:"Jul 21",date:"July 21, 6:48 PM",body:["Your trip is confirmed.","Outbound · August 18\nDL 2127 · LAX 10:20 AM → LAS 11:34 AM","Return · August 21\nDL 1674 · LAS 6:45 PM → LAX 8:02 PM","Confirmation: G7K2LM"]},
-];
-
-const aiSummaries:Record<string,string>={
-  1:"Insurance adjuster needs the final paid invoice by Aug 12 to release up to $2,150.",
-  2:"Ship the damaged table by Aug 3 to remain eligible for the $429 refund.",
-  3:"Vendor agrees the $680 charge is duplicated but has not yet issued the credit.",
-  4:"Dental claim was received and should be processed within 14 days.",
-  5:"Maya needs confirmation that Tuesday at 2 PM works for the review.",
-  6:"July Figma receipt for $45; no response or follow-up needed.",
-  7:"Vegas hotel: Fontainebleau, Aug 18–21; check-in starts at 3 PM.",
-  8:"Vegas flights: depart LAX Aug 18 at 10:20 AM; return Aug 21 at 6:45 PM.",
-};
-
 function suggestedWork(message:Mail):Work{return message.work??{title:message.subject,next:"Review this email",instruction:`Use the full email from ${message.sender} as context. Help me decide and complete the next action, but ask before sending anything.`}}
 
 function EmailImage({image}:{image:{src:string;alt:string}}){
@@ -82,8 +60,8 @@ export default function Home(){
   const [view,setView]=useState<"mail"|"tasks"|"connectors">("mail");
   const [folder,setFolder]=useState("Inbox");
   const [openId,setOpenId]=useState<string|number|null>(null);
-  const [converted,setConverted]=useState<Array<string|number>>([1,2,3]);
-  const [taskId,setTaskId]=useState<string|number>(1);
+  const [converted,setConverted]=useState<Array<string|number>>([]);
+  const [taskId,setTaskId]=useState<string|number|null>(null);
   const [search,setSearch]=useState("");
   const [compose,setCompose]=useState(false);
   const [replying,setReplying]=useState(false);
@@ -100,23 +78,24 @@ export default function Home(){
   const [toast,setToast]=useState("");
   const [answer,setAnswer]=useState<{text:string;ids:Array<string|number>}|null>(null);
   const [selected,setSelected]=useState<Array<string|number>>([]);
-  const [starred,setStarred]=useState<Array<string|number>>([1,3,7]);
-  const [unread,setUnread]=useState<Array<string|number>>(demoMail.filter(message=>message.unread).map(message=>message.id));
+  const [starred,setStarred]=useState<Array<string|number>>([]);
+  const [unread,setUnread]=useState<Array<string|number>>([]);
   const [customFolders,setCustomFolders]=useState<string[]>([]);
   const [manageFolders,setManageFolders]=useState(false);
-  const [locations,setLocations]=useState<Record<string,string>>({6:"Archive"});
+  const [locations,setLocations]=useState<Record<string,string>>({});
   const [accountOpen,setAccountOpen]=useState(false);
   const [account,setAccount]=useState<Account|null>(null);
   const [accountLoading,setAccountLoading]=useState(false);
   const [signInUrl,setSignInUrl]=useState("/signin-with-chatgpt?return_to=%2F");
   const [aiLoading,setAiLoading]=useState(false);
   const [gmail,setGmail]=useState<{connected:boolean;email:string|null}>({connected:false,email:null});
+  const [gmailChecking,setGmailChecking]=useState(true);
   const [liveMail,setLiveMail]=useState<Mail[]>([]);
   const [mailLoading,setMailLoading]=useState(false);
   const [gmailPage,setGmailPage]=useState(0);
   const [gmailPageTokens,setGmailPageTokens]=useState<string[]>([""]);
   const [gmailNextPageToken,setGmailNextPageToken]=useState<string|null>(null);
-  const mail=gmail.connected?liveMail:demoMail;
+  const mail=liveMail;
   const list=useMemo(()=>{
     if(gmail.connected)return mail;
     if(folder==="Starred")return mail.filter(m=>starred.includes(m.id)&&!locations[m.id]);
@@ -128,8 +107,8 @@ export default function Home(){
   },[folder,locations,customFolders,starred,gmail.connected,mail]);
   const opened=mail.find(m=>m.id===openId);
   const tasks=mail.filter(m=>converted.includes(m.id));
-  const task=mail.find(m=>m.id===taskId)??tasks[0]??demoMail[0];
-  const work=suggestedWork(task);
+  const task=mail.find(m=>m.id===taskId)??tasks[0]??null;
+  const work=task?suggestedWork(task):null;
   useEffect(()=>{
     void loadAccount(false);
     void loadGoogleConnection();
@@ -215,7 +194,8 @@ export default function Home(){
     }finally{setAccountLoading(false)}
   }
   async function loadGoogleConnection(){
-    try{const response=await fetch("/api/connectors/google",{cache:"no-store"});const json=await response.json() as {connected?:boolean;email?:string};const next={connected:Boolean(json.connected),email:json.email??null};setGmail(next);if(next.connected)await loadGmail("Inbox")}catch{/* Signed-out demo mode. */}
+    setGmailChecking(true);
+    try{const response=await fetch("/api/connectors/google",{cache:"no-store"});const json=await response.json() as {connected?:boolean;email?:string};const next={connected:Boolean(json.connected),email:json.email??null};setGmail(next);if(next.connected)await loadGmail("Inbox");else setLiveMail([])}catch{setGmail({connected:false,email:null});setLiveMail([])}finally{setGmailChecking(false)}
   }
   async function loadGmail(nextFolder=folder,pageToken=gmailPageTokens[gmailPage]??"",targetPage=gmailPage){
     setMailLoading(true);
@@ -274,7 +254,7 @@ export default function Home(){
         <button className={view==="mail"&&folder==="Trash"?"active":""} onClick={()=>chooseFolder("Trash")}><span>♲</span>Trash</button>
       </nav>
       <button className={`connectors-link ${view==="connectors"?"active":""}`} onClick={()=>{setView("connectors");setOpenId(null);setSelected([])}}><span>⌘</span>Connectors</button>
-      <div className={`account ${gmail.connected?"connected":""}`}><span>M</span><div><b>{gmail.connected?gmail.email:"Gmail not connected"}</b><small>{gmail.connected?"Live inbox":"Demo data"}</small></div><i>{gmail.connected?"✓":"!"}</i></div>
+      <div className={`account ${gmail.connected?"connected":""}`}><span>M</span><div><b>{gmailChecking?"Checking Gmail…":gmail.connected?gmail.email:"Gmail not connected"}</b><small>{gmailChecking?"Loading account":gmail.connected?"Live inbox":"Connect Gmail to begin"}</small></div><i>{gmailChecking?"…":gmail.connected?"✓":"!"}</i></div>
     </aside>
 
     <section className="main">
@@ -287,8 +267,8 @@ export default function Home(){
       {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>openMessage(m)}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
 
       {view==="mail"&&!opened&&<section className="inbox">
-        <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={toggleSelectedStar}>☆ Star</button><button className="bulk-action" onClick={toggleSelectedUnread}>○ Read/unread</button>{customFolders.length>0&&!gmail.connected&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>gmail.connected?void loadGmail(folder,gmailPageTokens[gmailPage]??"",gmailPage):notify("Inbox refreshed")}>↻</button><span/><small>{mailLoading?"Loading…":list.length?`${gmail.connected?gmailPage*50+1:1}–${gmail.connected?gmailPage*50+list.length:list.length}`:"0"}</small><button aria-label="Previous email page" disabled={!gmail.connected||gmailPage===0||mailLoading} onClick={()=>changeGmailPage(-1)}>‹</button><button aria-label="Next email page" disabled={!gmail.connected||!gmailNextPageToken||mailLoading} onClick={()=>changeGmailPage(1)}>›</button></>}</div>
-        <div className="mail-list">{list.map(m=><article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>openMessage(m)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[String(m.id)]??m.preview}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&!mailLoading&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
+        <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={toggleSelectedStar}>☆ Star</button><button className="bulk-action" onClick={toggleSelectedUnread}>○ Read/unread</button>{customFolders.length>0&&!gmail.connected&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>gmail.connected?void loadGmail(folder,gmailPageTokens[gmailPage]??"",gmailPage):notify("Connect Gmail to load your inbox")}>↻</button><span/><small>{gmailChecking||mailLoading?"Loading…":list.length?`${gmailPage*50+1}–${gmailPage*50+list.length}`:"0"}</small><button aria-label="Previous email page" disabled={!gmail.connected||gmailPage===0||mailLoading} onClick={()=>changeGmailPage(-1)}>‹</button><button aria-label="Next email page" disabled={!gmail.connected||!gmailNextPageToken||mailLoading} onClick={()=>changeGmailPage(1)}>›</button></>}</div>
+        <div className="mail-list">{list.map(m=><article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>openMessage(m)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{m.preview}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&(gmailChecking||mailLoading)&&<div className="mail-loading-state" role="status"><span/><span/><span/><p>Loading your Gmail inbox…</p></div>}{list.length===0&&!gmailChecking&&!mailLoading&&<div className="empty-folder"><span>{gmail.connected?"✓":"M"}</span><h2>{gmail.connected?"No messages here":"Connect your Gmail"}</h2><p>{gmail.connected?`Your ${folder.toLowerCase()} folder is clear.`:"Open Connectors to load your real inbox."}</p></div>}</div>
       </section>}
 
       {view==="mail"&&opened&&<section className="reader">
@@ -303,12 +283,12 @@ export default function Home(){
       </section>}
 
       {view==="tasks"&&<section className="tasks">
-        <div className="task-list"><header><h1>Tasks</h1><button onClick={()=>notify("New blank task created")}>＋</button></header>{tasks.map(m=>{const w=suggestedWork(m);return <article key={m.id} className={task.id===m.id?"active":""} onClick={()=>setTaskId(m.id)}><button>□</button><div><h2>{w.title}</h2><p>{w.next}</p><footer><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span>{m.sender}</span>{w.deadline&&<time>{w.deadline}</time>}</footer></div></article>})}</div>
-        <div className="task-page">
+        <div className="task-list"><header><h1>Tasks</h1><button onClick={()=>notify("Convert an email into a task to begin")}>＋</button></header>{tasks.map(m=>{const w=suggestedWork(m);return <article key={m.id} className={task?.id===m.id?"active":""} onClick={()=>setTaskId(m.id)}><button>□</button><div><h2>{w.title}</h2><p>{w.next}</p><footer><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span>{m.sender}</span>{w.deadline&&<time>{w.deadline}</time>}</footer></div></article>})}</div>
+        {task&&work?<div className="task-page">
           <header><p>TASK</p><h1>{work.title}</h1><div className="task-source"><span className={`initials ${task.tone}`}>{task.initials}</span><div><b>{task.sender}</b><span>{task.subject}</span></div><button onClick={()=>openMessage(task)}>Open email</button></div></header>
           <section className="task-body"><label>Next step</label><div className="next"><button>□</button><p>{work.next}</p>{work.deadline&&<time>{work.deadline}</time>}</div><label>Agent context</label><textarea value={contexts[task.id]??work.instruction} onChange={e=>setContexts(v=>({...v,[task.id]:e.target.value}))}/>{task.attachment&&<button className="context-file">▤ {task.attachment}</button>}
           <div className="agent"><header><span>✦</span><div><b>Resolve</b><small>Knows the email and context above</small></div></header><p>I can draft replies, find attachments, monitor the thread, and keep this task moving. I’ll ask before sending anything.</p><form onSubmit={e=>{e.preventDefault();if(prompt.trim()){notify("Instruction added");setPrompt("")}}}><input value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Tell Resolve what to do…"/><button>↑</button></form></div></section>
-        </div>
+        </div>:<div className="empty-task-state"><span>✦</span><h2>No tasks yet</h2><p>Open an email and choose Add to tasks. Resolve will carry the full email into your task context.</p></div>}
       </section>}
 
       {view==="connectors"&&<section className="connectors"><header><p>CONTEXT SOURCES</p><h1>Connect your work</h1><span>Give Resolve permission-aware context from the tools you already use. You control each connection.</span></header><div className="connector-grid">{[
