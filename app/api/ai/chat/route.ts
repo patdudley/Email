@@ -30,7 +30,7 @@ function gmailSearchQuery(question: string): string {
 }
 
 async function searchGmail(userEmail: string, question: string): Promise<{ matches: EmailRecord[]; nextPageToken: string | null }> {
-  const params = new URLSearchParams({ maxResults: "50", q: gmailSearchQuery(question) });
+  const params = new URLSearchParams({ maxResults: "25", q: gmailSearchQuery(question) });
   const list = await gmailFetch<{ threads?: Array<{ id: string }>; nextPageToken?: string }>(userEmail, `/threads?${params}`);
   const threads = await Promise.all((list.threads ?? []).map(({ id }) => gmailFetch<GmailThread>(userEmail, `/threads/${encodeURIComponent(id)}?format=full`)));
   return { matches: threads.map(summarizeThread), nextPageToken: list.nextPageToken ?? null };
@@ -82,12 +82,18 @@ export async function POST(request: Request) {
   }
   let account: Awaited<ReturnType<typeof reserveAiAnswer>> | null = null;
   try {
-    const body = await request.json() as { question?: string; emails?: unknown };
+    const body = await request.json() as { question?: string; emails?: unknown; skipGmailSearch?: boolean; searchOnly?: boolean };
     const question = body.question?.trim() ?? "";
     if (!question || question.length > 500) return Response.json({ error: "Ask a question under 500 characters" }, { status: 400 });
+    if (body.searchOnly) {
+      const result = await searchGmail(user.email, question);
+      return Response.json({ matches: result.matches, nextPageToken: result.nextPageToken, searchQuery: gmailSearchQuery(question) });
+    }
     let accountMatches: EmailRecord[] = [];
     let nextPageToken: string | null = null;
-    try { const result = await searchGmail(user.email, question); accountMatches = result.matches; nextPageToken = result.nextPageToken; } catch { /* Fall back to the currently loaded page. */ }
+    if (!body.skipGmailSearch) {
+      try { const result = await searchGmail(user.email, question); accountMatches = result.matches; nextPageToken = result.nextPageToken; } catch { /* Fall back to the currently loaded page. */ }
+    }
     const loadedEmails = Array.isArray(body.emails) ? body.emails : [];
     const emailContext = compactEmailContext(accountMatches.length ? accountMatches : loadedEmails, question);
     if (!emailContext.length) return Response.json({ error: "No email is loaded to search" }, { status: 400 });

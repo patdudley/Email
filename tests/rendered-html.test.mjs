@@ -56,7 +56,7 @@ test("includes baseline mailbox actions", async () => {
   assert.match(page, /scheduleRecipientSearch/);
   assert.match(page, /aria-autocomplete="list"/);
   assert.match(page, /handleRecipientKey/);
-  assert.match(recipients, /maxResults:\s*escapedSearch\s*\?\s*"50"\s*:\s*"200"/);
+  assert.match(recipients, /maxResults:\s*escapedSearch\s*\?\s*"12"\s*:\s*"40"/);
   assert.match(recipients, /format=metadata&metadataHeaders=From&metadataHeaders=To/);
   assert.match(recipients, /message\.labelIds\?\.includes\("SENT"\)/);
   assert.ok(recipients.includes('{from:"${escapedSearch}" to:"${escapedSearch}"}'));
@@ -88,19 +88,24 @@ test("supports scrollable 50-message Gmail pages and bounded AI context", async 
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../lib/gmail-message.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(threads, /maxResults:\s*"50"/);
+  assert.match(threads, /maxResults:\s*query\s*\?\s*"25"\s*:\s*"50"/);
   assert.match(threads, /pageToken/);
   assert.match(page, /changeGmailPage/);
   assert.match(css, /\.mail-list\{[^}]*overflow-y:auto/);
   assert.match(chat, /compactEmailContext/);
   assert.match(chat, /searchGmail/);
-  assert.match(chat, /maxResults:\s*"50"/);
+  assert.match(chat, /maxResults:\s*"25"/);
+  assert.match(chat, /body\.searchOnly/);
+  assert.match(chat, /!body\.skipGmailSearch/);
   assert.match(chat, /gmailSearchQuery/);
   assert.match(chat, /matches:\s*accountMatches/);
   assert.match(threads, /url\.searchParams\.get\("query"\)/);
   assert.match(page, /Summary of.*matching email/);
   assert.match(page, /Results for/);
   assert.match(page, /loadGmailSearchPage/);
+  assert.match(page, /searchOnly:true/);
+  assert.match(page, /skipGmailSearch:true/);
+  assert.match(page, /Summarizing the recent matches/);
   assert.match(css, /\.ai-answer\.search-summary/);
   assert.match(chat, /42_000/);
   assert.doesNotMatch(chat, /Email context is too large/);

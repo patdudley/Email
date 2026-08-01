@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const search = new URL(request.url).searchParams.get("q")?.trim().slice(0, 100) ?? "";
     const escapedSearch = search.replace(/[{}"\\]/g, " ").replace(/\s+/g, " ").trim();
     const gmailQuery = escapedSearch ? `{from:"${escapedSearch}" to:"${escapedSearch}"}` : "newer_than:2y";
-    const params = new URLSearchParams({ maxResults: escapedSearch ? "50" : "200", q: gmailQuery });
+    const params = new URLSearchParams({ maxResults: escapedSearch ? "12" : "40", q: gmailQuery });
     const list = await gmailFetch<MessageList>(user.email, `/messages?${params}`);
     const messages: GmailMessage[] = [];
     const ids = list.messages ?? [];
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     const recipients = [...counts.values()]
       .filter(recipient => !needle || recipient.name.toLowerCase().includes(needle) || recipient.email.includes(needle))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-      .slice(0, escapedSearch ? 50 : 150);
+      .slice(0, escapedSearch ? 12 : 40);
     return Response.json({ recipients }, { headers: { "Cache-Control": "private, max-age=300" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not load frequent recipients" }, { status: 502 });
