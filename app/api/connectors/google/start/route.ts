@@ -1,7 +1,7 @@
 import { getChatGPTUser, chatGPTSignInPath } from "../../../../chatgpt-auth";
 import { ensureUser } from "../../../../../lib/billing";
 import { sha256 } from "../../../../../lib/crypto";
-import { GMAIL_SCOPE, GOOGLE_REDIRECT_PATH } from "../../../../../lib/google";
+import { GOOGLE_REDIRECT_PATH, GOOGLE_SCOPES } from "../../../../../lib/google";
 import { requireRuntimeEnv } from "../../../../../lib/runtime-env";
 import { getD1 } from "../../../../../db";
 
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     client_id: requireRuntimeEnv("GOOGLE_CLIENT_ID"),
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: GMAIL_SCOPE,
+    scope: GOOGLE_SCOPES,
     access_type: "offline",
     include_granted_scopes: "true",
     prompt: "consent",

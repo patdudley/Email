@@ -66,8 +66,12 @@ test("includes baseline mailbox actions", async () => {
   assert.match(recipients, /maxResults:\s*escapedSearch\s*\?\s*"30"\s*:\s*"60"/);
   assert.match(recipients, /format=metadata&metadataHeaders=From&metadataHeaders=To/);
   assert.match(recipients, /message\.labelIds\?\.includes\("SENT"\)/);
-  assert.match(recipients, /const gmailQuery = escapedSearch \|\| "newer_than:2y"/);
-  assert.match(recipients, /b\.count - a\.count/);
+  assert.match(recipients, /from:\$\{escapedSearch\} OR to:\$\{escapedSearch\}/);
+  assert.match(recipients, /people:searchContacts/);
+  assert.match(recipients, /otherContacts:search/);
+  assert.match(recipients, /automatedAddress/);
+  assert.match(page, /loadRecipientSuggestions\(query\)/);
+  assert.match(page, /Get Gmail-quality contact suggestions/);
   assert.match(page, /Recent matching emails/);
   assert.match(page, /Search all email for/);
   assert.match(page, /function inboxDate/);
@@ -165,6 +169,10 @@ test("protects Gmail authorization and connector credentials", async () => {
   assert.match(start, /access_type:\s*"offline"/);
   assert.match(start, /sha256\(state\)/);
   assert.match(googleSource, /gmail\.modify/);
+  assert.match(googleSource, /contacts\.readonly/);
+  assert.match(googleSource, /contacts\.other\.readonly/);
+  assert.match(googleSource, /peopleFetch/);
+  assert.match(start, /scope:\s*GOOGLE_SCOPES/);
   assert.match(callback, /DELETE FROM oauth_states/);
   assert.match(callback, /saveGoogleConnection/);
   assert.match(cryptoSource, /AES-GCM/);

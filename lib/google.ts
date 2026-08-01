@@ -3,6 +3,9 @@ import { decryptSecret, encryptSecret } from "./crypto";
 import { requireRuntimeEnv } from "./runtime-env";
 
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
+export const GOOGLE_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
+export const GOOGLE_OTHER_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts.other.readonly";
+export const GOOGLE_SCOPES = [GMAIL_SCOPE, GOOGLE_CONTACTS_SCOPE, GOOGLE_OTHER_CONTACTS_SCOPE].join(" ");
 export const GOOGLE_REDIRECT_PATH = "/api/connectors/google/callback";
 
 type TokenResponse = { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error?: string; error_description?: string };
@@ -64,5 +67,15 @@ export async function gmailFetch<T>(userEmail: string, path: string, init?: Requ
   });
   const json = response.status === 204 ? {} : await response.json() as T & { error?: { message?: string } };
   if (!response.ok) throw new Error((json as { error?: { message?: string } }).error?.message ?? "Gmail request failed");
+  return json as T;
+}
+
+export async function peopleFetch<T>(userEmail: string, path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`https://people.googleapis.com/v1${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${await googleAccessToken(userEmail)}`, ...(init?.body ? { "Content-Type": "application/json" } : {}), ...init?.headers },
+  });
+  const json = response.status === 204 ? {} : await response.json() as T & { error?: { message?: string } };
+  if (!response.ok) throw new Error((json as { error?: { message?: string } }).error?.message ?? "Google Contacts request failed");
   return json as T;
 }
