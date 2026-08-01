@@ -29,10 +29,11 @@ test("renders the Resolve application shell", async () => {
 });
 
 test("includes baseline mailbox actions", async () => {
-  const [page, gmailMessage, recipients] = await Promise.all([
+  const [page, gmailMessage, recipients, sendRoute] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/gmail-message.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/gmail/recipients/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/gmail/send/route.ts", import.meta.url), "utf8"),
   ]);
   for (const action of ["Archive", "Spam", "Trash", "Forward", "Reply all", "Mark unread", "Snooze"]) {
     assert.match(page, new RegExp(action, "i"));
@@ -61,6 +62,16 @@ test("includes baseline mailbox actions", async () => {
   assert.match(recipients, /message\.labelIds\?\.includes\("SENT"\)/);
   assert.ok(recipients.includes('{from:"${escapedSearch}" to:"${escapedSearch}"}'));
   assert.match(recipients, /b\.count - a\.count/);
+  for (const capability of ["Bold", "Italic", "Underline", "Bulleted list", "Numbered list", "Insert link"]) assert.match(page, new RegExp(capability));
+  assert.match(page, /contentEditable/);
+  assert.match(page, /addAttachments/);
+  assert.match(page, /type="file" multiple/);
+  assert.match(page, /composeAttachments/);
+  assert.match(gmailMessage, /multipart\/mixed/);
+  assert.match(gmailMessage, /multipart\/alternative/);
+  assert.match(gmailMessage, /Content-Disposition: attachment/);
+  assert.match(sendRoute, /encodedAttachmentBytes/);
+  assert.match(sendRoute, /10\*1024\*1024/);
 });
 
 test("enforces AI usage and paid access on the server", async () => {

@@ -152,9 +152,58 @@ function encodeBase64Url(value: string): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-export function mimeMessage(input: { to: string; cc?: string; subject: string; body: string; inReplyTo?: string; references?: string }): string {
-  const headers = [`To: ${input.to}`, ...(input.cc ? [`Cc: ${input.cc}`] : []), `Subject: ${input.subject}`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: 8bit"];
+type OutgoingAttachment = { name: string; type: string; data: string };
+
+function safeHeader(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim();
+}
+
+function safeHtml(value: string): string {
+  return value
+    .replace(/<(script|iframe|object|embed|form|svg|math)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+(href|src)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi, ' $1="#"');
+}
+
+function htmlFromText(value: string): string {
+  return `<div>${value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}</div>`;
+}
+
+function plainFromHtml(value: string): string {
+  return value.replace(/<br\s*\/?\s*>/gi, "\n").replace(/<\/p\s*>|<\/div\s*>|<\/li\s*>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+export function mimeMessage(input: { to: string; cc?: string; subject: string; body: string; html?: string; attachments?: OutgoingAttachment[]; inReplyTo?: string; references?: string }): string {
+  const mixedBoundary = `resolve_mixed_${crypto.randomUUID().replace(/-/g, "")}`;
+  const alternativeBoundary = `resolve_alt_${crypto.randomUUID().replace(/-/g, "")}`;
+  const html = safeHtml(input.html?.trim() || htmlFromText(input.body));
+  const plain = input.body.trim() || plainFromHtml(html);
+  const headers = [`To: ${safeHeader(input.to)}`, ...(input.cc ? [`Cc: ${safeHeader(input.cc)}`] : []), `Subject: ${safeHeader(input.subject)}`, "MIME-Version: 1.0", `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`];
   if (input.inReplyTo) headers.push(`In-Reply-To: ${input.inReplyTo}`);
   if (input.references) headers.push(`References: ${input.references}`);
-  return encodeBase64Url(`${headers.join("\r\n")}\r\n\r\n${input.body}`);
+  const parts = [
+    ...headers,
+    "",
+    `--${mixedBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${alternativeBoundary}"`,
+    "",
+    `--${alternativeBoundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    plain,
+    `--${alternativeBoundary}`,
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    html,
+    `--${alternativeBoundary}--`,
+  ];
+  for (const attachment of input.attachments ?? []) {
+    const name = safeHeader(attachment.name).replace(/["\\]/g, "_") || "attachment";
+    const type = /^[\w.+-]+\/[\w.+-]+$/.test(attachment.type) ? attachment.type : "application/octet-stream";
+    parts.push(`--${mixedBoundary}`, `Content-Type: ${type}; name="${name}"`, "Content-Transfer-Encoding: base64", `Content-Disposition: attachment; filename="${name}"`, "", attachment.data.replace(/\s+/g, "").match(/.{1,76}/g)?.join("\r\n") ?? "");
+  }
+  parts.push(`--${mixedBoundary}--`, "");
+  return encodeBase64Url(parts.join("\r\n"));
 }
