@@ -77,6 +77,11 @@ test("includes baseline mailbox actions", async () => {
   assert.match(page, /Suggested action:/);
   assert.match(page, /runSuggestedAction/);
   assert.match(css, /\.suggested-action/);
+  assert.match(css, /content:"Suggested action"/);
+  assert.match(css, /\.suggested-action\.reply\{background:var\(--light-blue\)/);
+  assert.match(css, /\.suggested-action\.read\{background:var\(--navy\)/);
+  assert.match(css, /\.suggested-action\.archive\{background:var\(--pink\)/);
+  assert.match(css, /\.suggested-action small\{display:none\}/);
   assert.match(page, /localSearchSuggestions/);
   assert.match(page, /scheduleSearchPreview/);
   assert.match(page, /\/api\/gmail\/suggestions/);
