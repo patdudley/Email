@@ -6,6 +6,7 @@ type Mail = { id:string|number; threadId?:string; sender:string; email:string; i
 type Account = {email:string;displayName:string;plan:"free"|"pro";subscriptionStatus:string|null;cancelAtPeriodEnd:boolean;currentPeriodEnd:number|null;usage:number;limit:number;hasBillingAccount:boolean};
 type TaskRecord = {id:string;title:string;description:string;deadline:string|null;recurrenceType:"one_time"|"recurring";recurrenceEvery:number|null;recurrenceUnit:"day"|"week"|"month"|null;status:string;sourceThreadId:string|null;createdAt:number;updatedAt:number};
 type TaskMessage = {id?:string;role:"user"|"assistant";content:string;sources?:Array<{url:string;title:string}>;createdAt:number};
+type RecipientSuggestion = {name:string;email:string;count:number};
 
 function EmailImage({image}:{image:{src:string;alt:string}}){
   // Remote email assets cannot use the framework image optimizer because their hosts are arbitrary.
@@ -70,6 +71,10 @@ export default function Home(){
   const [composeSubject,setComposeSubject]=useState("");
   const [composeBody,setComposeBody]=useState("");
   const [showCc,setShowCc]=useState(false);
+  const [recipientSuggestions,setRecipientSuggestions]=useState<RecipientSuggestion[]>([]);
+  const [recipientSuggestionsOpen,setRecipientSuggestionsOpen]=useState(false);
+  const [recipientSuggestionsLoading,setRecipientSuggestionsLoading]=useState(false);
+  const [activeRecipientSuggestion,setActiveRecipientSuggestion]=useState(0);
   const [savedTasks,setSavedTasks]=useState<TaskRecord[]>([]);
   const [taskFilter,setTaskFilter]=useState<"active"|"completed">("active");
   const [activeTaskId,setActiveTaskId]=useState<string|null>(null);
@@ -117,6 +122,8 @@ export default function Home(){
   const opened=mail.find(m=>m.id===openId);
   const activeTask=savedTasks.find(task=>task.id===activeTaskId)??null;
   const visibleTasks=savedTasks.filter(task=>task.status===taskFilter);
+  const recipientQuery=composeTo.split(",").at(-1)?.trim().toLowerCase()??"";
+  const visibleRecipientSuggestions=recipientSuggestions.filter(recipient=>!recipientQuery||recipient.name.toLowerCase().includes(recipientQuery)||recipient.email.includes(recipientQuery)).slice(0,8);
   useEffect(()=>{
     void loadAccount(false);
     void loadGoogleConnection();
@@ -180,7 +187,24 @@ export default function Home(){
     setReplying(true);
   }
   async function sendReply(){if(!opened)return;if(replyMode==="forward"&&!forwardTo.trim()){notify("Add a recipient before forwarding");return}if(gmail.connected){const response=await sendGmail({to:replyMode==="forward"?forwardTo:opened.email,subject:`${replyMode==="forward"?"Fwd":"Re"}: ${opened.subject.replace(/^(re|fwd):\s*/i,"")}`,body:reply,threadId:replyMode==="forward"?undefined:opened.threadId});if(!response)return}setReplying(false);setReply("");setForwardTo("");notify(replyMode==="forward"?"Email forwarded":"Reply sent")}
-  async function sendCompose(){if(!composeTo.trim()){notify("Add a recipient before sending");return}if(gmail.connected&&!(await sendGmail({to:composeTo,cc:composeCc,subject:composeSubject,body:composeBody})))return;setCompose(false);setComposeTo("");setComposeCc("");setComposeSubject("");setComposeBody("");setShowCc(false);notify("Message sent")}
+  async function sendCompose(){if(!composeTo.trim()){notify("Add a recipient before sending");return}if(gmail.connected&&!(await sendGmail({to:composeTo,cc:composeCc,subject:composeSubject,body:composeBody})))return;setCompose(false);setComposeTo("");setComposeCc("");setComposeSubject("");setComposeBody("");setShowCc(false);setRecipientSuggestionsOpen(false);notify("Message sent")}
+  async function loadRecipientSuggestions(){
+    setRecipientSuggestionsOpen(true);setActiveRecipientSuggestion(0);
+    if(recipientSuggestions.length||recipientSuggestionsLoading||!gmail.connected)return;
+    setRecipientSuggestionsLoading(true);
+    try{const response=await fetch("/api/gmail/recipients",{cache:"no-store"});const json=await response.json() as {recipients?:RecipientSuggestion[];error?:string};if(!response.ok)throw new Error(json.error??"Could not load frequent recipients");setRecipientSuggestions(json.recipients??[])}
+    catch(error){notify(error instanceof Error?error.message:"Could not load frequent recipients")}finally{setRecipientSuggestionsLoading(false)}
+  }
+  function selectRecipient(recipient:RecipientSuggestion){
+    const recipients=composeTo.split(",");recipients[recipients.length-1]=recipient.email;setComposeTo(recipients.map(value=>value.trim()).filter(Boolean).join(", "));setRecipientSuggestionsOpen(false);setActiveRecipientSuggestion(0);
+  }
+  function handleRecipientKey(event:React.KeyboardEvent<HTMLInputElement>){
+    if(!recipientSuggestionsOpen||!visibleRecipientSuggestions.length)return;
+    if(event.key==="ArrowDown"){event.preventDefault();setActiveRecipientSuggestion(current=>(current+1)%visibleRecipientSuggestions.length)}
+    else if(event.key==="ArrowUp"){event.preventDefault();setActiveRecipientSuggestion(current=>(current-1+visibleRecipientSuggestions.length)%visibleRecipientSuggestions.length)}
+    else if(event.key==="Enter"||event.key==="Tab"){event.preventDefault();selectRecipient(visibleRecipientSuggestions[Math.min(activeRecipientSuggestion,visibleRecipientSuggestions.length-1)])}
+    else if(event.key==="Escape"){setRecipientSuggestionsOpen(false)}
+  }
   function addFolder(){
     const name=window.prompt("Name your new folder")?.trim();
     if(!name)return;
@@ -377,7 +401,7 @@ export default function Home(){
       ].map(item=><article key={item.name}><div className={`connector-mark ${item.tone}`}>{item.mark}</div><div><h2>{item.name}</h2><p>{item.name==="Gmail"&&gmail.connected?`Connected as ${gmail.email}. Your refresh token is encrypted at rest.`:item.description}</p></div>{item.name==="Gmail"?(gmail.connected?<button className="connected" onClick={()=>void disconnectGmail()}>Disconnect</button>:<button onClick={()=>window.location.assign("/api/connectors/google/start")}>Connect</button>):<button onClick={()=>notify(`${item.name} integration is not configured yet`)}>Connect</button>}</article>)}</div><footer><span>🔒</span><p><b>Your permissions stay intact.</b> Resolve only searches content your connected account can already access.</p></footer></section>}
     </section>
 
-    {compose&&<div className="compose-window"><header><b>New message</b><button aria-label="Close composer" onClick={()=>setCompose(false)}>×</button></header><label>To <input autoFocus value={composeTo} onChange={e=>setComposeTo(e.target.value)}/><button className="cc-toggle" onClick={()=>setShowCc(value=>!value)}>Cc/Bcc</button></label>{showCc&&<label>Cc <input value={composeCc} onChange={e=>setComposeCc(e.target.value)}/></label>}<label>Subject <input value={composeSubject} onChange={e=>setComposeSubject(e.target.value)}/></label><textarea aria-label="Message body" value={composeBody} onChange={e=>setComposeBody(e.target.value)}/><footer><button onClick={sendCompose}>Send</button><button className="attach-compose" onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button className="discard-compose" onClick={()=>{setCompose(false);setComposeTo("");setComposeCc("");setComposeSubject("");setComposeBody("")}}>Discard</button></footer></div>}
+    {compose&&<div className="compose-window"><header><b>New message</b><button aria-label="Close composer" onClick={()=>{setCompose(false);setRecipientSuggestionsOpen(false)}}>×</button></header><div className="compose-recipient-row"><label htmlFor="compose-to">To</label><input id="compose-to" role="combobox" aria-autocomplete="list" aria-expanded={recipientSuggestionsOpen} aria-controls="recipient-suggestions" autoFocus value={composeTo} placeholder="Search frequent contacts" onFocus={()=>void loadRecipientSuggestions()} onBlur={()=>window.setTimeout(()=>setRecipientSuggestionsOpen(false),120)} onChange={e=>{setComposeTo(e.target.value);setRecipientSuggestionsOpen(true);setActiveRecipientSuggestion(0)}} onKeyDown={handleRecipientKey}/><button className="cc-toggle" onClick={()=>setShowCc(value=>!value)}>Cc/Bcc</button>{recipientSuggestionsOpen&&<div id="recipient-suggestions" className="recipient-suggestions" role="listbox"><b>Frequently emailed</b>{recipientSuggestionsLoading?<p>Finding your contacts…</p>:visibleRecipientSuggestions.length?visibleRecipientSuggestions.map((recipient,index)=><button type="button" role="option" aria-selected={index===activeRecipientSuggestion} className={index===activeRecipientSuggestion?"active":""} key={recipient.email} onMouseDown={event=>event.preventDefault()} onClick={()=>selectRecipient(recipient)}><span>{recipient.name.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()}</span><div><strong>{recipient.name}</strong><small>{recipient.email}</small></div><i>{recipient.count} sent</i></button>):<p>{gmail.connected?"No matching recipients":"Connect Gmail to see frequent contacts"}</p>}</div>}</div>{showCc&&<label>Cc <input value={composeCc} onChange={e=>setComposeCc(e.target.value)}/></label>}<label>Subject <input value={composeSubject} onChange={e=>setComposeSubject(e.target.value)}/></label><textarea aria-label="Message body" value={composeBody} onChange={e=>setComposeBody(e.target.value)}/><footer><button onClick={sendCompose}>Send</button><button className="attach-compose" onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button className="discard-compose" onClick={()=>{setCompose(false);setComposeTo("");setComposeCc("");setComposeSubject("");setComposeBody("");setRecipientSuggestionsOpen(false)}}>Discard</button></footer></div>}
     {accountOpen&&<div className="account-backdrop" onClick={()=>setAccountOpen(false)}><section className="account-panel" onClick={event=>event.stopPropagation()}><header><div><small>RESOLVE ACCOUNT</small><h2>{account?account.displayName:"Your account"}</h2>{account&&<p>{account.email}</p>}</div><button aria-label="Close account" onClick={()=>setAccountOpen(false)}>×</button></header>{accountLoading&&!account?<div className="account-loading">Loading account…</div>:account?<><div className="plan-card"><div><span className={`plan-pill ${account.plan}`}>{account.plan==="pro"?"PRO":"FREE"}</span><h3>{account.plan==="pro"?"Resolve Pro":"Free plan"}</h3><p>{account.plan==="pro"?"More AI search for a busy inbox.":"Try AI search before upgrading."}</p></div><strong>{account.plan==="pro"?"$20":"$0"}<small>/month</small></strong></div><div className="usage-card"><div><b>AI answers this month</b><span>{account.usage} of {account.limit}</span></div><progress max={account.limit} value={account.usage}/><p>Usage resets at the beginning of each month. Resolve stops at your limit—there are no surprise overage charges.</p></div>{account.plan==="pro"?<button className="billing-primary" disabled={accountLoading} onClick={()=>void beginBilling("/api/billing/portal")}>Manage billing</button>:<button className="billing-primary" disabled={accountLoading} onClick={()=>void beginBilling("/api/billing/checkout")}>Upgrade to Pro · $20/month</button>}<p className="billing-note">Payments are securely processed by Stripe. Resolve never stores your card number.</p></>:<div className="sign-in-card"><span>✦</span><h3>Sign in to protect your inbox</h3><p>An account is required for AI search, billing, and private connector access.</p><a href={signInUrl}>Sign in with ChatGPT</a></div>}</section></div>}
     {toast&&<div className="toast"><span>✓</span>{toast}</div>}
   </main>

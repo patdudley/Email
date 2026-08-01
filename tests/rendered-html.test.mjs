@@ -29,9 +29,10 @@ test("renders the Resolve application shell", async () => {
 });
 
 test("includes baseline mailbox actions", async () => {
-  const [page, gmailMessage] = await Promise.all([
+  const [page, gmailMessage, recipients] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/gmail-message.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/gmail/recipients/route.ts", import.meta.url), "utf8"),
   ]);
   for (const action of ["Archive", "Spam", "Trash", "Forward", "Reply all", "Mark unread", "Snooze"]) {
     assert.match(page, new RegExp(action, "i"));
@@ -50,6 +51,13 @@ test("includes baseline mailbox actions", async () => {
     assert.match(page, new RegExp(`data-tooltip="${tooltip}"`, "i"));
   }
   assert.match(page, /referrerPolicy="no-referrer"/);
+  assert.match(page, /Frequently emailed/);
+  assert.match(page, /aria-autocomplete="list"/);
+  assert.match(page, /handleRecipientKey/);
+  assert.match(recipients, /labelIds:\s*"SENT"/);
+  assert.match(recipients, /maxResults:\s*"100"/);
+  assert.match(recipients, /format=metadata&metadataHeaders=To/);
+  assert.match(recipients, /b\.count - a\.count/);
 });
 
 test("enforces AI usage and paid access on the server", async () => {

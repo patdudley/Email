@@ -96,6 +96,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline-color:rg
 .reply-box footer .send,.compose-window>footer button{background:linear-gradient(135deg,var(--ocean),var(--medium-blue))}
 .compose-window>header{background:var(--navy)}
 .compose-window>label .cc-toggle{color:#0876c9}
+.compose-recipient-row{height:43px;flex:0 0 43px;border-bottom:1px solid var(--line);padding:0 12px;display:flex;align-items:center;gap:9px;position:relative;color:var(--muted);font-size:12px}
+.compose-recipient-row>label{font-size:12px}.compose-recipient-row>input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:13px}.compose-recipient-row>.cc-toggle{border:0;background:none;color:#0876c9;font-size:10px;padding:4px}
+.recipient-suggestions{position:absolute;z-index:5;top:42px;left:8px;right:8px;max-height:292px;overflow-y:auto;border:1px solid #c9ddea;border-radius:0 0 12px 12px;background:#fff;box-shadow:0 14px 30px rgba(10,37,64,.16);padding:8px}
+.recipient-suggestions>b{display:block;padding:6px 8px 7px;color:var(--slate);font-size:9px;letter-spacing:.1em;text-transform:uppercase}.recipient-suggestions>p{margin:0;padding:14px 9px;color:var(--muted);font-size:11px}
+.recipient-suggestions>button{width:100%;min-height:52px;border:0;border-radius:9px;background:#fff;padding:7px 9px;display:flex;align-items:center;gap:10px;text-align:left}.recipient-suggestions>button:hover,.recipient-suggestions>button.active{background:#eaf7fc}
+.recipient-suggestions>button>span{width:32px;height:32px;flex:0 0 32px;border-radius:10px;background:linear-gradient(135deg,var(--light-blue),#e9f6ff);color:var(--slate);display:grid;place-items:center;font-size:10px;font-weight:850}.recipient-suggestions>button>div{min-width:0;display:grid;gap:2px}.recipient-suggestions strong,.recipient-suggestions small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.recipient-suggestions strong{color:var(--navy);font-size:12px}.recipient-suggestions small{color:var(--muted);font-size:10px}.recipient-suggestions i{margin-left:auto;color:#0876c9;font-size:9px;font-style:normal;white-space:nowrap}
 .task-list article.active{background:#eaf7fc;box-shadow:inset 3px 0 var(--ocean)}
 .context-file{background:#edf7fc;color:#526579}
 .agent>header>span,.ai-answer>header>span,.sign-in-card>span{background:#fff0fb;color:var(--pink)}
