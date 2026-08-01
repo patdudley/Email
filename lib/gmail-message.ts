@@ -69,6 +69,28 @@ export function remoteImagesFromPart(part?: Part): Array<{ src: string; alt: str
   return images;
 }
 
+export function remoteImagesFromText(text: string): Array<{ src: string; alt: string }> {
+  const images: Array<{ src: string; alt: string }> = [];
+  const seen = new Set<string>();
+  for (const match of text.matchAll(/View image:\s*\((https?:\/\/[^)\s]+)\)/gi)) {
+    const src = decodeHtmlEntities(match[1]);
+    if (seen.has(src)) continue;
+    seen.add(src);
+    images.push({ src, alt: "Email image" });
+    if (images.length === 20) break;
+  }
+  return images;
+}
+
+function uniqueImages(images: Array<{ src: string; alt: string }>): Array<{ src: string; alt: string }> {
+  const seen = new Set<string>();
+  return images.filter((image) => {
+    if (seen.has(image.src)) return false;
+    seen.add(image.src);
+    return true;
+  }).slice(0, 20);
+}
+
 export function displayName(from: string): { name: string; email: string } {
   const match = from.match(/^\s*"?([^"<]*)"?\s*<([^>]+)>/);
   if (match) return { name: match[1].trim() || match[2], email: match[2] };
@@ -83,7 +105,10 @@ export function summarizeThread(thread: GmailThread) {
   const subject = header(latest, "Subject") || "(no subject)";
   const timestamp = Number(latest.internalDate ?? Date.now());
   const body = messages.map((message) => textFromPart(message.payload).trim()).filter(Boolean);
-  const images = remoteImagesFromPart(latest.payload);
+  const images = uniqueImages([
+    ...remoteImagesFromPart(latest.payload),
+    ...body.flatMap(remoteImagesFromText),
+  ]);
   return {
     id: thread.id,
     sender: from.name,
