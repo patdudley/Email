@@ -51,6 +51,22 @@ test("enforces AI usage and paid access on the server", async () => {
   assert.match(checkout, /STRIPE_PRO_PRICE_ID/);
 });
 
+test("supports scrollable 50-message Gmail pages and bounded AI context", async () => {
+  const [threads, chat, page, css] = await Promise.all([
+    readFile(new URL("../app/api/gmail/threads/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/ai/chat/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(threads, /maxResults:\s*"50"/);
+  assert.match(threads, /pageToken/);
+  assert.match(page, /changeGmailPage/);
+  assert.match(css, /\.mail-list\{[^}]*overflow-y:auto/);
+  assert.match(chat, /compactEmailContext/);
+  assert.match(chat, /42_000/);
+  assert.doesNotMatch(chat, /Email context is too large/);
+});
+
 test("protects Gmail authorization and connector credentials", async () => {
   const [start, callback, cryptoSource, googleSource, page] = await Promise.all([
     readFile(new URL("../app/api/connectors/google/start/route.ts", import.meta.url), "utf8"),

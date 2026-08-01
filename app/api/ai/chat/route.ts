@@ -7,6 +7,48 @@ type OpenAIResponse = {
   usage?: { input_tokens?: number; output_tokens?: number };
 };
 
+type EmailRecord = {
+  id?: string | number;
+  sender?: string;
+  email?: string;
+  subject?: string;
+  date?: string;
+  preview?: string;
+  body?: string[] | string;
+};
+
+const ignoredSearchWords = new Set(["about", "after", "again", "also", "before", "could", "does", "email", "from", "have", "into", "just", "please", "that", "their", "them", "there", "these", "this", "what", "when", "where", "which", "with", "would", "your"]);
+
+function compactEmailContext(input: unknown, question: string): Array<Record<string, string | number>> {
+  if (!Array.isArray(input)) return [];
+  const terms = question.toLowerCase().match(/[a-z0-9]{3,}/g)?.filter((term) => !ignoredSearchWords.has(term)) ?? [];
+  const ranked = input.slice(0, 100).map((raw, index) => {
+    const record = (raw && typeof raw === "object" ? raw : {}) as EmailRecord;
+    const sender = String(record.sender ?? "").slice(0, 160);
+    const email = String(record.email ?? "").slice(0, 254);
+    const subject = String(record.subject ?? "").slice(0, 300);
+    const date = String(record.date ?? "").slice(0, 100);
+    const preview = String(record.preview ?? "").slice(0, 500);
+    const body = (Array.isArray(record.body) ? record.body.join("\n") : String(record.body ?? "")).replace(/\s+/g, " ").trim();
+    const headerText = `${sender} ${email} ${subject}`.toLowerCase();
+    const contentText = `${preview} ${body}`.toLowerCase();
+    const score = terms.reduce((total, term) => total + (headerText.includes(term) ? 5 : 0) + (contentText.includes(term) ? 1 : 0), 0);
+    return { index, score, id: typeof record.id === "number" ? record.id : String(record.id ?? index), sender, email, subject, date, preview, body };
+  }).sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const selected: Array<Record<string, string | number>> = [];
+  let characters = 0;
+  for (const record of ranked) {
+    const compact = { id: record.id, sender: record.sender, email: record.email, subject: record.subject, date: record.date, preview: record.preview, excerpt: record.body.slice(0, record.score > 0 ? 1_800 : 650) };
+    const size = JSON.stringify(compact).length;
+    if (characters + size > 42_000) continue;
+    selected.push(compact);
+    characters += size;
+    if (selected.length === 50) break;
+  }
+  return selected;
+}
+
 function outputText(response: OpenAIResponse): string {
   return (response.output ?? [])
     .flatMap((item) => item.content ?? [])
@@ -25,9 +67,10 @@ export async function POST(request: Request) {
   try {
     const body = await request.json() as { question?: string; emails?: unknown };
     const question = body.question?.trim() ?? "";
-    const serializedEmails = JSON.stringify(body.emails ?? []);
     if (!question || question.length > 500) return Response.json({ error: "Ask a question under 500 characters" }, { status: 400 });
-    if (serializedEmails.length > 60_000) return Response.json({ error: "Email context is too large" }, { status: 413 });
+    const emailContext = compactEmailContext(body.emails, question);
+    if (!emailContext.length) return Response.json({ error: "No email is loaded to search" }, { status: 400 });
+    const serializedEmails = JSON.stringify(emailContext);
     account = await reserveAiAnswer(user);
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",

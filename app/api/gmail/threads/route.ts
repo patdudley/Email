@@ -15,8 +15,10 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const folder = url.searchParams.get("folder") ?? "Inbox";
+    const pageToken = url.searchParams.get("pageToken")?.trim() ?? "";
     const config = folderQueries[folder] ?? { label: folder };
-    const params = new URLSearchParams({ maxResults: "20" });
+    const params = new URLSearchParams({ maxResults: "50" });
+    if (pageToken) params.set("pageToken", pageToken.slice(0, 1_000));
     if (config.label) params.set("labelIds", config.label);
     if (config.q) params.set("q", config.q);
     if (folder === "Spam" || folder === "Trash") params.set("includeSpamTrash", "true");
