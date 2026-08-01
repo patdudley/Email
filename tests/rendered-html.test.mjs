@@ -65,6 +65,9 @@ test("includes baseline mailbox actions", async () => {
   assert.match(recipients, /b\.count - a\.count/);
   assert.match(page, /Recent matching emails/);
   assert.match(page, /Search all email for/);
+  assert.match(page, /function inboxDate/);
+  assert.match(page, /dateTime=\{m\.date\}/);
+  assert.match(page, /<b>\{inboxDate\(m\.date\)\}<\/b><small>\{m\.time\}<\/small>/);
   assert.match(page, /localSearchSuggestions/);
   assert.match(page, /scheduleSearchPreview/);
   assert.match(page, /\/api\/gmail\/suggestions/);

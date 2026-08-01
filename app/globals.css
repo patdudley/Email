@@ -149,6 +149,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline-color:rg
 .empty-task-state h2{margin:14px 0 6px;color:var(--navy);font-size:20px}
 .empty-task-state p{max-width:390px;margin:0;font-size:13px;line-height:1.55}
 
+/* Always show the message date in the inbox, with time as a secondary line. */
+.mail-list article>time{display:grid;justify-items:end;gap:3px;line-height:1.1}.mail-list article>time b{color:var(--slate);font-size:11px;white-space:nowrap}.mail-list article>time small{color:var(--muted);font-size:10px;white-space:nowrap}
+@media(max-width:760px){.mail-list article>time small{display:none}.mail-list article>time b{font-size:10px}}
+
 /* Gmail-style search typeahead: local mailbox matches paint immediately, then the API augments them. */
 .topbar{position:relative;z-index:40;overflow:visible}.ai-search{position:relative;z-index:41;overflow:visible}
 .search-preview{position:absolute;z-index:70;top:calc(100% + 9px);left:0;right:0;max-height:min(680px,calc(100vh - 112px));overflow-y:auto;border:1px solid #bfd6e9;border-radius:15px;background:#fff;color:var(--charcoal);box-shadow:0 22px 55px rgba(10,37,64,.2);padding:7px;text-align:left}
