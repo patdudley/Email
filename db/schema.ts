@@ -1,4 +1,4 @@
-import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   email: text("email").primaryKey(),
@@ -50,3 +50,24 @@ export const connectorAccounts = sqliteTable("connector_accounts", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [primaryKey({ columns: [table.userEmail, table.provider] })]);
+
+export const tasks = sqliteTable("tasks", {
+  id: text("id").primaryKey(),
+  userEmail: text("user_email").notNull().references(() => users.email, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  deadline: text("deadline"),
+  status: text("status").notNull().default("active"),
+  sourceThreadId: text("source_thread_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => [index("idx_tasks_user_updated").on(table.userEmail, table.updatedAt)]);
+
+export const taskMessages = sqliteTable("task_messages", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  sources: text("sources"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => [index("idx_task_messages_task_created").on(table.taskId, table.createdAt)]);

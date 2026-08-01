@@ -108,3 +108,21 @@ test("protects Gmail authorization and connector credentials", async () => {
   assert.match(cryptoSource, /AES-GCM/);
   assert.match(page, /\/api\/connectors\/google\/start/);
 });
+
+test("supports persistent standalone tasks with an interactive research agent", async () => {
+  const [page, schema, taskRoute, taskChat] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/tasks/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/tasks/chat/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /What are you working on\?/);
+  assert.match(page, /Create task and start/);
+  assert.match(page, /task-conversation/);
+  assert.match(schema, /sqliteTable\("tasks"/);
+  assert.match(schema, /sqliteTable\("task_messages"/);
+  assert.match(taskRoute, /WHERE user_email=\?/);
+  assert.match(taskChat, /WHERE id=\? AND user_email=\?/);
+  assert.match(taskChat, /web_search_preview/);
+  assert.match(taskChat, /reserveAiAnswer/);
+});

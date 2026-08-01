@@ -133,3 +133,51 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline-color:rg
 .empty-task-state>span{width:42px;height:42px;border-radius:13px;background:#fff0fb;color:var(--pink);display:grid;place-items:center;font-size:17px}
 .empty-task-state h2{margin:14px 0 6px;color:var(--navy);font-size:20px}
 .empty-task-state p{max-width:390px;margin:0;font-size:13px;line-height:1.55}
+
+/* Standalone, persistent task agent workspace. */
+.task-workspace{min-height:0;overflow:hidden;background:#fff}
+.task-list{background:var(--ice)}
+.task-list>header{background:#fff}
+.task-list>header button{width:34px;height:34px;border-radius:9px;background:var(--navy);color:#fff;font-size:20px}
+.task-list article{grid-template-columns:12px minmax(0,1fr);padding:17px 18px;background:#fff}
+.task-list article.active{background:#eaf7fc;box-shadow:inset 3px 0 var(--ocean)}
+.task-status-dot{width:8px;height:8px;border-radius:50%;background:var(--ocean);margin-top:4px;box-shadow:0 0 0 4px rgba(19,186,238,.1)}
+.task-list h2{font-size:14px;line-height:1.3;margin:0 0 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task-list p{font-size:11px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.task-list footer{margin-top:10px}.task-list footer>span,.task-list footer time{font-size:9px;text-transform:uppercase;letter-spacing:.05em}
+.task-list-loading,.task-list-empty{padding:26px 20px;color:var(--muted);font-size:12px;text-align:center}
+.new-task-page{overflow:auto;background:linear-gradient(180deg,#fff 0%,var(--ice) 100%);padding:52px 28px}
+.new-task-page form{width:min(720px,100%);margin:0 auto}
+.eyebrow{display:block;color:#0876c9;font-size:10px;font-weight:800;letter-spacing:.12em}
+.new-task-page h1{font-size:34px;letter-spacing:-1px;color:var(--navy);margin:10px 0 10px}
+.new-task-page form>p{font-size:14px;line-height:1.55;color:var(--muted);max-width:620px;margin:0 0 32px}
+.new-task-page label{display:grid;gap:8px;margin:0 0 20px;color:var(--navy);font-size:12px;font-weight:750}
+.new-task-page label>span{color:var(--muted);font-size:10px;font-weight:500}
+.new-task-page input,.new-task-page textarea{width:100%;border:1px solid #bdd5e7;border-radius:11px;background:#fff;padding:13px 14px;font-size:14px;outline:0;resize:vertical}
+.new-task-page input:focus,.new-task-page textarea:focus{border-color:var(--ocean);box-shadow:0 0 0 3px rgba(19,186,238,.12)}
+.new-task-page textarea{min-height:150px;line-height:1.55}
+.deadline-field{max-width:260px}
+.create-task-primary{height:46px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--ocean),var(--medium-blue));color:#fff;padding:0 18px;font-size:13px;font-weight:800;box-shadow:0 7px 18px rgba(46,141,255,.2)}
+.create-task-primary:disabled{opacity:.45;cursor:not-allowed}
+.task-chat-page{min-width:0;min-height:0;display:grid;grid-template-rows:auto 1fr auto;background:linear-gradient(180deg,#fff 0%,#fbfdff 100%)}
+.task-chat-page>header{display:flex;gap:20px;align-items:flex-start;padding:27px 34px 22px;border-bottom:1px solid var(--line);background:#fff}
+.task-chat-page>header>div{min-width:0;flex:1}
+.task-chat-page>header h1{font-size:25px;line-height:1.25;letter-spacing:-.55px;color:var(--navy);margin:7px 0 6px}
+.task-chat-page>header p{font-size:12px;line-height:1.5;color:var(--muted);margin:0;max-width:760px}
+.task-meta{display:flex;gap:8px;margin-top:12px}.task-meta span{border-radius:999px;background:#eaf7fc;color:#0876c9;padding:5px 8px;font-size:9px;font-weight:700}
+.delete-task{border:1px solid #f2c8e6;border-radius:8px;background:#fff7fd;color:#b40b87;padding:8px 10px;font-size:10px}
+.task-conversation{min-height:0;overflow-y:auto;padding:26px clamp(22px,5vw,70px);display:flex;flex-direction:column;gap:22px}
+.task-message{width:min(760px,92%);display:grid;gap:8px}.task-message.user{align-self:flex-end;width:min(610px,85%)}
+.message-author{display:flex;align-items:center;gap:6px;color:var(--slate);font-size:10px;font-weight:800}.message-author span{color:var(--pink)}
+.task-message.user .message-author{justify-content:flex-end;color:var(--muted)}
+.message-content{border:1px solid #cddfeb;border-radius:14px 14px 14px 4px;background:#fff;padding:14px 16px;color:var(--charcoal);font-size:13px;line-height:1.6;box-shadow:0 4px 16px rgba(10,37,64,.04)}
+.message-content>span{display:block;min-height:.45em}
+.task-message.user .message-content{border-color:#b7e5f5;border-radius:14px 14px 4px 14px;background:#eaf9fe}
+.task-sources{display:flex;align-items:center;flex-wrap:wrap;gap:7px}.task-sources b{font-size:9px;color:var(--muted)}.task-sources a{border:1px solid #c7dceb;border-radius:999px;background:#fff;color:#0876c9;padding:5px 8px;font-size:9px;text-decoration:none}
+.task-agent-thinking{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:11px}.task-agent-thinking span{width:7px;height:7px;border-radius:50%;background:var(--ocean);animation:mail-pulse 1.05s ease-in-out infinite}.task-agent-thinking span:nth-child(2){animation-delay:.12s}.task-agent-thinking span:nth-child(3){animation-delay:.24s;background:var(--pink);margin-right:4px}
+.task-agent-intro{margin:auto;display:grid;justify-items:center;text-align:center;color:var(--muted)}.task-agent-intro>span{width:42px;height:42px;border-radius:13px;background:#fff0fb;color:var(--pink);display:grid;place-items:center;font-size:18px}.task-agent-intro p{font-size:13px}.task-agent-intro button,.empty-task-state button{height:40px;border:0;border-radius:9px;background:var(--navy);color:#fff;padding:0 15px;font-size:12px;font-weight:750}
+.task-chat-form{margin:0 clamp(22px,5vw,70px) 22px;border:1px solid #bcd5e7;border-radius:14px;background:#fff;padding:8px;display:flex;align-items:flex-end;gap:8px;box-shadow:0 8px 26px rgba(10,37,64,.1)}
+.task-chat-form textarea{flex:1;min-height:48px;max-height:150px;border:0;outline:0;resize:none;padding:8px;font-size:13px;line-height:1.45}
+.task-chat-form button{width:38px;height:38px;border:0;border-radius:10px;background:var(--navy);color:#fff;font-size:16px}.task-chat-form button:disabled{opacity:.35}
+.empty-task-state button{margin-top:18px;background:linear-gradient(135deg,var(--ocean),var(--medium-blue))}
+@media(max-width:760px){.task-workspace{overflow:auto}.task-chat-page{min-height:70vh}.task-chat-page>header{padding:22px 16px}.task-conversation{padding:22px 14px}.task-chat-form{margin:0 14px 16px}.new-task-page{padding:32px 18px}.new-task-page h1{font-size:28px}}

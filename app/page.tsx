@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type Work = { title:string; next:string; deadline?:string; instruction:string };
-type Mail = { id:string|number; threadId?:string; sender:string; email:string; initials:string; tone:string; subject:string; preview:string; time:string; date:string; unread?:boolean; starred?:boolean; body:string[]; html?:string; images?:Array<{src:string;alt:string}>; attachment?:string; work?:Work };
+type Mail = { id:string|number; threadId?:string; sender:string; email:string; initials:string; tone:string; subject:string; preview:string; time:string; date:string; unread?:boolean; starred?:boolean; body:string[]; html?:string; images?:Array<{src:string;alt:string}>; attachment?:string };
 type Account = {email:string;displayName:string;plan:"free"|"pro";subscriptionStatus:string|null;cancelAtPeriodEnd:boolean;currentPeriodEnd:number|null;usage:number;limit:number;hasBillingAccount:boolean};
-
-function suggestedWork(message:Mail):Work{return message.work??{title:message.subject,next:"Review this email",instruction:`Use the full email from ${message.sender} as context. Help me decide and complete the next action, but ask before sending anything.`}}
+type TaskRecord = {id:string;title:string;description:string;deadline:string|null;status:string;sourceThreadId:string|null;createdAt:number;updatedAt:number};
+type TaskMessage = {id?:string;role:"user"|"assistant";content:string;sources?:Array<{url:string;title:string}>;createdAt:number};
 
 function EmailImage({image}:{image:{src:string;alt:string}}){
   // Remote email assets cannot use the framework image optimizer because their hosts are arbitrary.
@@ -60,8 +59,6 @@ export default function Home(){
   const [view,setView]=useState<"mail"|"tasks"|"connectors">("mail");
   const [folder,setFolder]=useState("Inbox");
   const [openId,setOpenId]=useState<string|number|null>(null);
-  const [converted,setConverted]=useState<Array<string|number>>([]);
-  const [taskId,setTaskId]=useState<string|number|null>(null);
   const [search,setSearch]=useState("");
   const [compose,setCompose]=useState(false);
   const [replying,setReplying]=useState(false);
@@ -73,8 +70,16 @@ export default function Home(){
   const [composeSubject,setComposeSubject]=useState("");
   const [composeBody,setComposeBody]=useState("");
   const [showCc,setShowCc]=useState(false);
-  const [contexts,setContexts]=useState<Record<string,string>>({});
-  const [prompt,setPrompt]=useState("");
+  const [savedTasks,setSavedTasks]=useState<TaskRecord[]>([]);
+  const [activeTaskId,setActiveTaskId]=useState<string|null>(null);
+  const [taskMessages,setTaskMessages]=useState<TaskMessage[]>([]);
+  const [tasksLoading,setTasksLoading]=useState(true);
+  const [taskAgentLoading,setTaskAgentLoading]=useState(false);
+  const [creatingTask,setCreatingTask]=useState(false);
+  const [newTaskTitle,setNewTaskTitle]=useState("");
+  const [newTaskDescription,setNewTaskDescription]=useState("");
+  const [newTaskDeadline,setNewTaskDeadline]=useState("");
+  const [taskChatInput,setTaskChatInput]=useState("");
   const [toast,setToast]=useState("");
   const [answer,setAnswer]=useState<{text:string;ids:Array<string|number>}|null>(null);
   const [selected,setSelected]=useState<Array<string|number>>([]);
@@ -106,12 +111,11 @@ export default function Home(){
     return mail.filter(m=>!locations[m.id]);
   },[folder,locations,customFolders,starred,gmail.connected,mail]);
   const opened=mail.find(m=>m.id===openId);
-  const tasks=mail.filter(m=>converted.includes(m.id));
-  const task=mail.find(m=>m.id===taskId)??tasks[0]??null;
-  const work=task?suggestedWork(task):null;
+  const activeTask=savedTasks.find(task=>task.id===activeTaskId)??null;
   useEffect(()=>{
     void loadAccount(false);
     void loadGoogleConnection();
+    void loadTasks();
     const gmailResult=new URLSearchParams(window.location.search).get("gmail");
     const message=gmailResult==="connected"
       ? "Gmail connected — loading your inbox"
@@ -134,7 +138,11 @@ export default function Home(){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
   function notify(text:string){setToast(text);window.setTimeout(()=>setToast(""),2300)}
-  function convert(message:Mail){if(!converted.includes(message.id))setConverted(v=>[message.id,...v]);setTaskId(message.id);setView("tasks");setOpenId(null);notify("Task created with this email as context")}
+  async function convert(message:Mail){
+    const linked=savedTasks.find(task=>task.sourceThreadId===String(message.threadId??message.id));
+    if(linked){setActiveTaskId(linked.id);await openTask(linked.id);setView("tasks");setOpenId(null);return}
+    await createTask({title:message.subject,description:`From ${message.sender} <${message.email}>\n\n${message.preview}\n\n${message.body.join("\n\n")}`,deadline:null,sourceThreadId:String(message.threadId??message.id)});
+  }
   function chooseFolder(next:string){setView("mail");setFolder(next);setOpenId(null);setSelected([]);setGmailPage(0);setGmailPageTokens([""]);setGmailNextPageToken(null);if(gmail.connected)void loadGmail(next,"",0)}
   function openMessage(message:Mail){
     setView("mail");setOpenId(message.id);setAnswer(null);
@@ -182,6 +190,60 @@ export default function Home(){
     setLocations(current=>Object.fromEntries(Object.entries(current).filter(([,destination])=>destination!==name)) as Record<string,string>);
     if(folder===name)chooseFolder("Inbox");
     notify(`${name} folder deleted`);
+  }
+  async function loadTasks(){
+    setTasksLoading(true);
+    try{
+      const response=await fetch("/api/tasks",{cache:"no-store"});
+      const json=await response.json() as {tasks?:TaskRecord[];signInUrl?:string};
+      if(response.status===401){if(json.signInUrl)setSignInUrl(json.signInUrl);setSavedTasks([]);return}
+      if(response.ok)setSavedTasks(json.tasks??[]);
+    }finally{setTasksLoading(false)}
+  }
+  async function openTask(id:string){
+    setActiveTaskId(id);setCreatingTask(false);setTaskMessages([]);setTasksLoading(true);
+    try{
+      const response=await fetch(`/api/tasks?id=${encodeURIComponent(id)}`,{cache:"no-store"});
+      const json=await response.json() as {task?:TaskRecord;messages?:TaskMessage[];error?:string};
+      if(!response.ok||!json.task)throw new Error(json.error??"Could not load task");
+      setTaskMessages(json.messages??[]);
+    }catch(error){notify(error instanceof Error?error.message:"Could not load task")}finally{setTasksLoading(false)}
+  }
+  async function createTask(input?:{title:string;description:string;deadline:string|null;sourceThreadId?:string}){
+    const title=input?.title??newTaskTitle.trim();
+    const description=input?.description??newTaskDescription.trim();
+    if(!title||!description){notify("Add a title and description");return}
+    setTaskAgentLoading(true);
+    try{
+      const response=await fetch("/api/tasks",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,description,deadline:input?.deadline??(newTaskDeadline||null),sourceThreadId:input?.sourceThreadId})});
+      const json=await response.json() as {task?:TaskRecord;error?:string;signInUrl?:string};
+      if(response.status===401){if(json.signInUrl)setSignInUrl(json.signInUrl);setAccountOpen(true);return}
+      if(!response.ok||!json.task)throw new Error(json.error??"Could not create task");
+      setSavedTasks(current=>[json.task!,...current]);setActiveTaskId(json.task.id);setCreatingTask(false);setView("tasks");setOpenId(null);setNewTaskTitle("");setNewTaskDescription("");setNewTaskDeadline("");setTaskMessages([]);
+      await runTaskAgent(json.task.id,"",true);
+    }catch(error){notify(error instanceof Error?error.message:"Could not create task")}finally{setTaskAgentLoading(false)}
+  }
+  async function runTaskAgent(taskId:string,message:string,start=false){
+    const text=message.trim();
+    if(!start&&!text)return;
+    if(!start)setTaskMessages(current=>[...current,{role:"user",content:text,createdAt:Math.floor(Date.now()/1000)}]);
+    setTaskChatInput("");setTaskAgentLoading(true);
+    try{
+      const response=await fetch("/api/tasks/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({taskId,message:text,start})});
+      const json=await response.json() as {message?:TaskMessage;error?:string;signInUrl?:string;upgradeRequired?:boolean;usage?:number;limit?:number};
+      if(response.status===401){if(json.signInUrl)setSignInUrl(json.signInUrl);setAccountOpen(true);return}
+      if(json.upgradeRequired){setAccountOpen(true);await loadAccount(false);notify(json.error??"Monthly AI limit reached");return}
+      if(!response.ok||!json.message)throw new Error(json.error??"Task agent unavailable");
+      setTaskMessages(current=>[...current,json.message!]);
+      if(account&&typeof json.usage==="number")setAccount({...account,usage:json.usage,limit:json.limit??account.limit});
+      await loadTasks();setActiveTaskId(taskId);
+    }catch(error){notify(error instanceof Error?error.message:"Task agent unavailable")}finally{setTaskAgentLoading(false)}
+  }
+  async function deleteTask(id:string){
+    if(!window.confirm("Delete this task and its conversation?"))return;
+    const response=await fetch("/api/tasks",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+    if(!response.ok){notify("Could not delete task");return}
+    setSavedTasks(current=>current.filter(task=>task.id!==id));setActiveTaskId(null);setTaskMessages([]);notify("Task deleted");
   }
   async function loadAccount(open=true){
     if(open)setAccountOpen(true);
@@ -260,7 +322,7 @@ export default function Home(){
     <section className="main">
       <header className="topbar">
         <div className="mobile-logo">R</div>
-        <div className="tabs"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{tasks.length}</span></button></div>
+        <div className="tabs"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{savedTasks.length}</span></button></div>
         <form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail}><span>✦</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={aiLoading?"Searching your email…":"Ask anything about your email…"} disabled={aiLoading}/><button aria-label="Ask Resolve" disabled={aiLoading}>{aiLoading?"…":"↑"}</button></form>
         <button className="avatar" aria-label="Open account and billing" onClick={()=>void loadAccount(true)}>{account?.displayName?.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"PD"}</button>
       </header>
@@ -268,11 +330,11 @@ export default function Home(){
 
       {view==="mail"&&!opened&&<section className="inbox">
         <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={toggleSelectedStar}>☆ Star</button><button className="bulk-action" onClick={toggleSelectedUnread}>○ Read/unread</button>{customFolders.length>0&&!gmail.connected&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>gmail.connected?void loadGmail(folder,gmailPageTokens[gmailPage]??"",gmailPage):notify("Connect Gmail to load your inbox")}>↻</button><span/><small>{gmailChecking||mailLoading?"Loading…":list.length?`${gmailPage*50+1}–${gmailPage*50+list.length}`:"0"}</small><button aria-label="Previous email page" disabled={!gmail.connected||gmailPage===0||mailLoading} onClick={()=>changeGmailPage(-1)}>‹</button><button aria-label="Next email page" disabled={!gmail.connected||!gmailNextPageToken||mailLoading} onClick={()=>changeGmailPage(1)}>›</button></>}</div>
-        <div className="mail-list">{list.map(m=><article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>openMessage(m)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{m.preview}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&(gmailChecking||mailLoading)&&<div className="mail-loading-state" role="status"><span/><span/><span/><p>Loading your Gmail inbox…</p></div>}{list.length===0&&!gmailChecking&&!mailLoading&&<div className="empty-folder"><span>{gmail.connected?"✓":"M"}</span><h2>{gmail.connected?"No messages here":"Connect your Gmail"}</h2><p>{gmail.connected?`Your ${folder.toLowerCase()} folder is clear.`:"Open Connectors to load your real inbox."}</p></div>}</div>
+        <div className="mail-list">{list.map(m=><article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>openMessage(m)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{m.preview}</span></div>{savedTasks.some(task=>task.sourceThreadId===String(m.threadId??m.id))&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&(gmailChecking||mailLoading)&&<div className="mail-loading-state" role="status"><span/><span/><span/><p>Loading your Gmail inbox…</p></div>}{list.length===0&&!gmailChecking&&!mailLoading&&<div className="empty-folder"><span>{gmail.connected?"✓":"M"}</span><h2>{gmail.connected?"No messages here":"Connect your Gmail"}</h2><p>{gmail.connected?`Your ${folder.toLowerCase()} folder is clear.`:"Open Connectors to load your real inbox."}</p></div>}</div>
       </section>}
 
       {view==="mail"&&opened&&<section className="reader">
-        <div className="reader-tools"><button data-tooltip="Back" aria-label="Back to message list" onClick={()=>{setOpenId(null);setReplying(false)}}>←</button>{(gmail.connected?folder==="Trash":Boolean(locations[String(opened.id)]))?<button data-tooltip="Move to Inbox" aria-label="Move to Inbox" onClick={restoreOpen}>↥</button>:<button data-tooltip="Archive" aria-label="Archive" onClick={()=>moveOpen("Archive")}>▣</button>}<button data-tooltip="Report spam" aria-label="Report spam" onClick={()=>moveOpen("Spam")}>!</button><button data-tooltip="Move to Trash" aria-label="Move to Trash" onClick={()=>moveOpen("Trash")}>♲</button><button data-tooltip="Snooze" aria-label="Snooze" onClick={()=>gmail.connected?notify("Gmail snooze is coming next"):moveOpen("Snoozed")}>◷</button><button data-tooltip="Mark unread" aria-label="Mark unread" onClick={()=>gmail.connected?void gmailAction([opened.id],"unread"):(setUnread(current=>[...new Set([...current,opened.id])]),setOpenId(null),notify("Email marked unread"))}>○</button><button data-tooltip={starred.includes(opened.id)?"Unstar":"Star"} aria-label={starred.includes(opened.id)?"Unstar":"Star"} className={starred.includes(opened.id)?"star-active":""} onClick={()=>toggleStar(opened.id)}>{starred.includes(opened.id)?"★":"☆"}</button><span/><button className="task-button" onClick={()=>convert(opened)}>{converted.includes(opened.id)?"Open task":"＋ Add to tasks"}</button></div>
+        <div className="reader-tools"><button data-tooltip="Back" aria-label="Back to message list" onClick={()=>{setOpenId(null);setReplying(false)}}>←</button>{(gmail.connected?folder==="Trash":Boolean(locations[String(opened.id)]))?<button data-tooltip="Move to Inbox" aria-label="Move to Inbox" onClick={restoreOpen}>↥</button>:<button data-tooltip="Archive" aria-label="Archive" onClick={()=>moveOpen("Archive")}>▣</button>}<button data-tooltip="Report spam" aria-label="Report spam" onClick={()=>moveOpen("Spam")}>!</button><button data-tooltip="Move to Trash" aria-label="Move to Trash" onClick={()=>moveOpen("Trash")}>♲</button><button data-tooltip="Snooze" aria-label="Snooze" onClick={()=>gmail.connected?notify("Gmail snooze is coming next"):moveOpen("Snoozed")}>◷</button><button data-tooltip="Mark unread" aria-label="Mark unread" onClick={()=>gmail.connected?void gmailAction([opened.id],"unread"):(setUnread(current=>[...new Set([...current,opened.id])]),setOpenId(null),notify("Email marked unread"))}>○</button><button data-tooltip={starred.includes(opened.id)?"Unstar":"Star"} aria-label={starred.includes(opened.id)?"Unstar":"Star"} className={starred.includes(opened.id)?"star-active":""} onClick={()=>toggleStar(opened.id)}>{starred.includes(opened.id)?"★":"☆"}</button><span/><button className="task-button" onClick={()=>void convert(opened)}>{savedTasks.some(task=>task.sourceThreadId===String(opened.threadId??opened.id))?"Open task":"＋ Add to tasks"}</button></div>
         <div className="message">
           <h1>{opened.subject}</h1>
           <div className="sender"><span className={`initials ${opened.tone}`}>{opened.initials}</span><div><b>{opened.sender}</b><p>{opened.email} · to me</p></div><time>{opened.date}</time></div>
@@ -282,13 +344,14 @@ export default function Home(){
         </div>
       </section>}
 
-      {view==="tasks"&&<section className="tasks">
-        <div className="task-list"><header><h1>Tasks</h1><button onClick={()=>notify("Convert an email into a task to begin")}>＋</button></header>{tasks.map(m=>{const w=suggestedWork(m);return <article key={m.id} className={task?.id===m.id?"active":""} onClick={()=>setTaskId(m.id)}><button>□</button><div><h2>{w.title}</h2><p>{w.next}</p><footer><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span>{m.sender}</span>{w.deadline&&<time>{w.deadline}</time>}</footer></div></article>})}</div>
-        {task&&work?<div className="task-page">
-          <header><p>TASK</p><h1>{work.title}</h1><div className="task-source"><span className={`initials ${task.tone}`}>{task.initials}</span><div><b>{task.sender}</b><span>{task.subject}</span></div><button onClick={()=>openMessage(task)}>Open email</button></div></header>
-          <section className="task-body"><label>Next step</label><div className="next"><button>□</button><p>{work.next}</p>{work.deadline&&<time>{work.deadline}</time>}</div><label>Agent context</label><textarea value={contexts[task.id]??work.instruction} onChange={e=>setContexts(v=>({...v,[task.id]:e.target.value}))}/>{task.attachment&&<button className="context-file">▤ {task.attachment}</button>}
-          <div className="agent"><header><span>✦</span><div><b>Resolve</b><small>Knows the email and context above</small></div></header><p>I can draft replies, find attachments, monitor the thread, and keep this task moving. I’ll ask before sending anything.</p><form onSubmit={e=>{e.preventDefault();if(prompt.trim()){notify("Instruction added");setPrompt("")}}}><input value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Tell Resolve what to do…"/><button>↑</button></form></div></section>
-        </div>:<div className="empty-task-state"><span>✦</span><h2>No tasks yet</h2><p>Open an email and choose Add to tasks. Resolve will carry the full email into your task context.</p></div>}
+      {view==="tasks"&&<section className="tasks task-workspace">
+        <div className="task-list"><header><h1>Tasks</h1><button aria-label="Create new task" onClick={()=>{setCreatingTask(true);setActiveTaskId(null);setTaskMessages([])}}>＋</button></header>
+          {tasksLoading&&!savedTasks.length?<div className="task-list-loading">Loading tasks…</div>:savedTasks.map(task=><article key={task.id} className={activeTaskId===task.id?"active":""} onClick={()=>void openTask(task.id)}><span className="task-status-dot"/><div><h2>{task.title}</h2><p>{task.description}</p><footer><span>{task.sourceThreadId?"From email":"Standalone"}</span>{task.deadline&&<time>{new Date(`${task.deadline}T00:00:00`).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</time>}</footer></div></article>)}
+          {!tasksLoading&&!savedTasks.length&&<div className="task-list-empty">No tasks yet</div>}
+        </div>
+        {creatingTask?<div className="new-task-page"><form onSubmit={event=>{event.preventDefault();void createTask()}}><span className="eyebrow">NEW TASK</span><h1>What are you working on?</h1><p>Give Resolve the goal and enough background to start. It will ask focused follow-up questions before researching and building your plan.</p><label>Title<input autoFocus value={newTaskTitle} onChange={event=>setNewTaskTitle(event.target.value)} placeholder="e.g. Plan a customer advisory board" maxLength={200}/></label><label>Description<textarea value={newTaskDescription} onChange={event=>setNewTaskDescription(event.target.value)} placeholder="What outcome do you want? What should Resolve know?" maxLength={5000}/></label><label className="deadline-field">Deadline <span>Optional</span><input type="date" value={newTaskDeadline} onChange={event=>setNewTaskDeadline(event.target.value)}/></label><button className="create-task-primary" disabled={taskAgentLoading||!newTaskTitle.trim()||!newTaskDescription.trim()}>{taskAgentLoading?"Starting…":"Create task and start →"}</button></form></div>
+        :activeTask?<div className="task-chat-page"><header><div><span className="eyebrow">TASK WORKSPACE</span><h1>{activeTask.title}</h1><p>{activeTask.description}</p><div className="task-meta"><span>{activeTask.deadline?`Due ${new Date(`${activeTask.deadline}T00:00:00`).toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"})}`:"No deadline"}</span>{activeTask.sourceThreadId&&<span>Created from email</span>}</div></div><button className="delete-task" onClick={()=>void deleteTask(activeTask.id)}>Delete</button></header><div className="task-conversation">{!taskMessages.length&&!taskAgentLoading&&<div className="task-agent-intro"><span>✦</span><p>Resolve is ready to review this task.</p><button onClick={()=>void runTaskAgent(activeTask.id,"",true)}>Start the conversation</button></div>}{taskMessages.map((message,index)=><article key={message.id??`${message.role}-${index}`} className={`task-message ${message.role}`}><div className="message-author">{message.role==="assistant"?<><span>✦</span>Resolve</>:"You"}</div><div className="message-content">{message.content.split("\n").map((line,lineIndex)=><span key={lineIndex}>{line||<br/>}</span>)}</div>{message.sources&&message.sources.length>0&&<div className="task-sources"><b>Sources</b>{message.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a>)}</div>}</article>)}{taskAgentLoading&&<div className="task-agent-thinking"><span/><span/><span/> Resolve is thinking and researching…</div>}</div><form className="task-chat-form" onSubmit={event=>{event.preventDefault();void runTaskAgent(activeTask.id,taskChatInput)}}><textarea value={taskChatInput} onChange={event=>setTaskChatInput(event.target.value)} placeholder="Answer Resolve or ask it to research, strategize, or organize the next step…" rows={2} onKeyDown={event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void runTaskAgent(activeTask.id,taskChatInput)}}}/><button aria-label="Send to Resolve" disabled={taskAgentLoading||!taskChatInput.trim()}>↑</button></form></div>
+        :<div className="empty-task-state"><span>✦</span><h2>No tasks yet</h2><p>Create a task with a title, description, and optional deadline. Resolve will ask follow-up questions, research it, and help organize the work.</p><button onClick={()=>setCreatingTask(true)}>＋ New task</button></div>}
       </section>}
 
       {view==="connectors"&&<section className="connectors"><header><p>CONTEXT SOURCES</p><h1>Connect your work</h1><span>Give Resolve permission-aware context from the tools you already use. You control each connection.</span></header><div className="connector-grid">{[
