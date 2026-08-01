@@ -24,7 +24,7 @@ export async function POST(request:Request) {
     if(!taskId||(!body.start&&!message))return Response.json({error:"Task and message are required"},{status:400});
     if(message.length>5000)return Response.json({error:"Keep messages under 5,000 characters"},{status:400});
     const db=getD1();
-    const task=await db.prepare(`SELECT id,title,description,deadline FROM tasks WHERE id=? AND user_email=?`).bind(taskId,user.email.toLowerCase()).first<{id:string;title:string;description:string;deadline:string|null}>();
+    const task=await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit FROM tasks WHERE id=? AND user_email=?`).bind(taskId,user.email.toLowerCase()).first<{id:string;title:string;description:string;deadline:string|null;recurrenceType:string;recurrenceEvery:number|null;recurrenceUnit:string|null}>();
     if(!task)return Response.json({error:"Task not found"},{status:404});
     const history=await db.prepare(`SELECT role,content FROM task_messages WHERE task_id=? ORDER BY created_at DESC,id DESC LIMIT 24`).bind(taskId).all<{role:string;content:string}>();
     const now=Math.floor(Date.now()/1000);
@@ -39,7 +39,7 @@ export async function POST(request:Request) {
       tools:[{type:"web_search_preview"}],
       max_output_tokens:1600,
       instructions:`Role: You are Resolve, a collaborative task strategist and research agent.\n\nGoal: Help the user execute this task end to end. First identify the smallest missing context that materially changes the plan. Ask at most three focused questions at a time. When enough context exists, research current external facts when useful, synthesize findings, recommend a strategy, and give an actionable execution plan.\n\nSuccess means the user always knows the best next move, important decisions and tradeoffs are explicit, research-backed claims have citations, and blockers are named. Do not pretend to take external actions. Ask before any external write, purchase, or destructive action. Keep the tone direct, practical, and collaborative.`,
-      input:`TASK\nTitle: ${task.title}\nDescription: ${task.description}\nDeadline: ${task.deadline??"None"}\n\nCONVERSATION SO FAR\n${conversation||"No prior messages."}\n\nCURRENT TURN\n${userTurn}`
+      input:`TASK\nTitle: ${task.title}\nDescription: ${task.description}\nDeadline: ${task.deadline??"None"}\nSchedule: ${task.recurrenceType==="recurring"?`Every ${task.recurrenceEvery} ${task.recurrenceUnit}${task.recurrenceEvery===1?"":"s"}`:"One-time"}\n\nCONVERSATION SO FAR\n${conversation||"No prior messages."}\n\nCURRENT TURN\n${userTurn}`
     })});
     const json=await response.json() as OpenAIResponse;
     if(!response.ok)throw new Error(json.error?.message??"Task agent request failed");

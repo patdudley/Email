@@ -118,9 +118,13 @@ test("supports persistent standalone tasks with an interactive research agent", 
   ]);
   assert.match(page, /What are you working on\?/);
   assert.match(page, /Create task and start/);
+  assert.match(page, /One-time/);
+  assert.match(page, /Recurring/);
+  assert.match(page, /Recurrence interval/);
   assert.match(page, /task-conversation/);
   assert.match(schema, /sqliteTable\("tasks"/);
   assert.match(schema, /sqliteTable\("task_messages"/);
+  assert.match(schema, /recurrenceType/);
   assert.match(taskRoute, /WHERE user_email=\?/);
   assert.match(taskChat, /WHERE id=\? AND user_email=\?/);
   assert.match(taskChat, /web_search_preview/);

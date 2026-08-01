@@ -156,6 +156,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline-color:rg
 .new-task-page input,.new-task-page textarea{width:100%;border:1px solid #bdd5e7;border-radius:11px;background:#fff;padding:13px 14px;font-size:14px;outline:0;resize:vertical}
 .new-task-page input:focus,.new-task-page textarea:focus{border-color:var(--ocean);box-shadow:0 0 0 3px rgba(19,186,238,.12)}
 .new-task-page textarea{min-height:150px;line-height:1.55}
+.task-schedule{border:0;padding:0;margin:0 0 20px}.task-schedule legend{margin-bottom:8px;color:var(--navy);font-size:12px;font-weight:750}
+.schedule-toggle{display:inline-flex;padding:4px;border-radius:11px;background:#eaf2f8;gap:3px}.schedule-toggle button{height:36px;border:0;border-radius:8px;background:transparent;color:var(--muted);padding:0 14px;font-size:12px;font-weight:700}.schedule-toggle button.active{background:#fff;color:var(--slate);box-shadow:0 2px 7px rgba(10,37,64,.1)}
+.recurrence-fields{display:flex;align-items:center;gap:8px;margin-top:12px;color:var(--muted);font-size:12px}.recurrence-fields input{width:74px;padding:9px 10px}.recurrence-fields select{height:39px;border:1px solid #bdd5e7;border-radius:9px;background:#fff;color:var(--navy);padding:0 10px;font-size:12px}
 .deadline-field{max-width:260px}
 .create-task-primary{height:46px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--ocean),var(--medium-blue));color:#fff;padding:0 18px;font-size:13px;font-weight:800;box-shadow:0 7px 18px rgba(46,141,255,.2)}
 .create-task-primary:disabled{opacity:.45;cursor:not-allowed}
