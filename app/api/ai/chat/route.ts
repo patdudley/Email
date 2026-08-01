@@ -1,5 +1,7 @@
 import { getChatGPTUser, chatGPTSignInPath } from "../../../chatgpt-auth";
 import { recordAiTokens, reserveAiAnswer, rollbackAiAnswer } from "../../../../lib/billing";
+import { type GmailThread, summarizeThread } from "../../../../lib/gmail-message";
+import { gmailFetch } from "../../../../lib/google";
 import { requireRuntimeEnv, runtimeEnv } from "../../../../lib/runtime-env";
 
 type OpenAIResponse = {
@@ -18,6 +20,16 @@ type EmailRecord = {
 };
 
 const ignoredSearchWords = new Set(["about", "after", "again", "also", "before", "could", "does", "email", "from", "have", "into", "just", "please", "that", "their", "them", "there", "these", "this", "what", "when", "where", "which", "with", "would", "your"]);
+
+async function searchGmail(userEmail: string, question: string): Promise<EmailRecord[]> {
+  const baseTerms = question.toLowerCase().match(/[a-z0-9]{3,}/g)?.filter((term) => !ignoredSearchWords.has(term)) ?? [];
+  const terms = [...new Set(baseTerms.flatMap((term) => term.endsWith("s") && term.length > 4 ? [term, term.slice(0, -1)] : [term]))].slice(0, 8);
+  if (!terms.length) return [];
+  const params = new URLSearchParams({ maxResults: "30", q: `{${terms.join(" ")}}` });
+  const list = await gmailFetch<{ threads?: Array<{ id: string }> }>(userEmail, `/threads?${params}`);
+  const threads = await Promise.all((list.threads ?? []).map(({ id }) => gmailFetch<GmailThread>(userEmail, `/threads/${encodeURIComponent(id)}?format=full`)));
+  return threads.map(summarizeThread);
+}
 
 function compactEmailContext(input: unknown, question: string): Array<Record<string, string | number>> {
   if (!Array.isArray(input)) return [];
@@ -68,7 +80,10 @@ export async function POST(request: Request) {
     const body = await request.json() as { question?: string; emails?: unknown };
     const question = body.question?.trim() ?? "";
     if (!question || question.length > 500) return Response.json({ error: "Ask a question under 500 characters" }, { status: 400 });
-    const emailContext = compactEmailContext(body.emails, question);
+    let accountMatches: EmailRecord[] = [];
+    try { accountMatches = await searchGmail(user.email, question); } catch { /* Fall back to the currently loaded page. */ }
+    const loadedEmails = Array.isArray(body.emails) ? body.emails : [];
+    const emailContext = compactEmailContext([...accountMatches, ...loadedEmails], question);
     if (!emailContext.length) return Response.json({ error: "No email is loaded to search" }, { status: 400 });
     const serializedEmails = JSON.stringify(emailContext);
     account = await reserveAiAnswer(user);
