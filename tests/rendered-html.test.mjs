@@ -29,8 +29,9 @@ test("renders the Resolve application shell", async () => {
 });
 
 test("includes baseline mailbox actions", async () => {
-  const [page, gmailMessage, recipients, suggestions, sendRoute] = await Promise.all([
+  const [page, css, gmailMessage, recipients, suggestions, sendRoute] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../lib/gmail-message.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/gmail/recipients/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/gmail/suggestions/route.ts", import.meta.url), "utf8"),
@@ -68,6 +69,10 @@ test("includes baseline mailbox actions", async () => {
   assert.match(page, /function inboxDate/);
   assert.match(page, /dateTime=\{m\.date\}/);
   assert.match(page, /<b>\{inboxDate\(m\.date\)\}<\/b><small>\{m\.time\}<\/small>/);
+  assert.match(page, /function suggestedAction/);
+  assert.match(page, /Suggested action:/);
+  assert.match(page, /runSuggestedAction/);
+  assert.match(css, /\.suggested-action/);
   assert.match(page, /localSearchSuggestions/);
   assert.match(page, /scheduleSearchPreview/);
   assert.match(page, /\/api\/gmail\/suggestions/);

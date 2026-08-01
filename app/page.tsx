@@ -9,6 +9,7 @@ type TaskMessage = {id?:string;role:"user"|"assistant";content:string;sources?:A
 type RecipientSuggestion = {name:string;email:string;count:number};
 type SearchPreview = {contacts:RecipientSuggestion[];emails:Mail[]};
 type OutgoingAttachment = {id:string;name:string;type:string;size:number;data:string};
+type SuggestedAction = "archive"|"reply"|"read";
 
 function EmailImage({image}:{image:{src:string;alt:string}}){
   // Remote email assets cannot use the framework image optimizer because their hosts are arbitrary.
@@ -25,6 +26,12 @@ function inboxDate(value:string):string{
   if(Number.isNaN(parsed.getTime()))return value;
   const currentYear=new Date().getFullYear();
   return new Intl.DateTimeFormat("en-US",parsed.getFullYear()===currentYear?{month:"short",day:"numeric"}:{month:"numeric",day:"numeric",year:"2-digit"}).format(parsed);
+}
+
+function suggestedAction(message:Mail,isUnread:boolean):SuggestedAction{
+  const automated=`${message.sender} ${message.email} ${message.subject}`.toLowerCase();
+  if(/no-?reply|newsletter|digest|receipt|order|alert|notification|update|promo|marketing|substack|beehiiv/.test(automated))return "archive";
+  return isUnread?"read":"reply";
 }
 
 function EmailBodyText({text}:{text:string}){
@@ -188,6 +195,21 @@ export default function Home(){
       if(gmail.connected)void fetch("/api/gmail/threads/modify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:[String(message.id)],action:"read"})});
     }
     if(gmail.connected)void loadGmailThread(String(message.id));
+  }
+  function runSuggestedAction(event:React.MouseEvent<HTMLButtonElement>,message:Mail,action:SuggestedAction){
+    event.stopPropagation();
+    if(action==="read"){openMessage(message);return}
+    if(action==="reply"){
+      setView("mail");setOpenId(message.id);setReplyMode("reply");setReply("");setReplyAttachments([]);setReplying(true);
+      if(unread.includes(message.id)){
+        setUnread(current=>current.filter(id=>id!==message.id));
+        if(gmail.connected)void fetch("/api/gmail/threads/modify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:[String(message.id)],action:"read"})});
+      }
+      if(gmail.connected)void loadGmailThread(String(message.threadId??message.id));
+      return;
+    }
+    if(gmail.connected){void gmailAction([message.id],"archive");return}
+    setLocations(current=>({...current,[String(message.id)]:"Archive"}));notify("Email archived");
   }
   function toggleSelected(id:string|number){setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id])}
   function toggleStar(id:string|number){if(gmail.connected){void gmailAction([id],starred.includes(id)?"unstar":"star");return}setStarred(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id])}
@@ -476,7 +498,7 @@ export default function Home(){
 
       {view==="mail"&&!opened&&<section className="inbox">
         <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={toggleSelectedStar}>☆ Star</button><button className="bulk-action" onClick={toggleSelectedUnread}>○ Read/unread</button>{customFolders.length>0&&!gmail.connected&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<>{searchMode?<><button aria-label="Clear email search" onClick={clearEmailSearch}>×</button><strong className="search-result-label">Results for “{answer?.query??gmailSearchQuery}”</strong></>:<button aria-label="Refresh inbox" onClick={()=>gmail.connected?void loadGmail(folder,gmailPageTokens[gmailPage]??"",gmailPage):notify("Connect Gmail to load your inbox")}>↻</button>}<span/><small>{gmailChecking||mailLoading?"Loading…":list.length?`${gmailPage*gmailPageSize+1}–${gmailPage*gmailPageSize+list.length}`:"0"}</small><button aria-label="Previous email page" disabled={!gmail.connected||gmailPage===0||mailLoading} onClick={()=>changeGmailPage(-1)}>‹</button><button aria-label="Next email page" disabled={!gmail.connected||!gmailNextPageToken||mailLoading} onClick={()=>changeGmailPage(1)}>›</button></>}</div>
-        <div className="mail-list">{list.map(m=><article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>openMessage(m)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{m.preview}</span></div>{savedTasks.some(task=>task.sourceThreadId===String(m.threadId??m.id))&&<em>Task</em>}<time dateTime={m.date}><b>{inboxDate(m.date)}</b><small>{m.time}</small></time></article>)}{list.length===0&&(gmailChecking||mailLoading)&&<div className="mail-loading-state" role="status"><span/><span/><span/><p>{searchMode?"Searching all of Gmail…":"Loading your Gmail inbox…"}</p></div>}{list.length===0&&!gmailChecking&&!mailLoading&&<div className="empty-folder"><span>{gmail.connected?"✓":"M"}</span><h2>{searchMode?"No matching emails":gmail.connected?"No messages here":"Connect your Gmail"}</h2><p>{searchMode?`Gmail did not find messages matching “${gmailSearchQuery}”.`:gmail.connected?`Your ${folder.toLowerCase()} folder is clear.`:"Open Connectors to load your real inbox."}</p></div>}</div>
+        <div className="mail-list">{list.map(m=>{const action=suggestedAction(m,unread.includes(m.id));return <article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>openMessage(m)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{m.preview}</span></div>{savedTasks.some(task=>task.sourceThreadId===String(m.threadId??m.id))&&<em>Task</em>}<time dateTime={m.date}><b>{inboxDate(m.date)}</b><small>{m.time}</small></time><button className={`suggested-action ${action}`} aria-label={`Suggested action: ${action} email from ${m.sender}`} onClick={event=>runSuggestedAction(event,m,action)}><small>Suggested action</small><b>{action==="archive"?"▣ Archive":action==="reply"?"↩ Reply":"Open Read"}</b></button></article>})}{list.length===0&&(gmailChecking||mailLoading)&&<div className="mail-loading-state" role="status"><span/><span/><span/><p>{searchMode?"Searching all of Gmail…":"Loading your Gmail inbox…"}</p></div>}{list.length===0&&!gmailChecking&&!mailLoading&&<div className="empty-folder"><span>{gmail.connected?"✓":"M"}</span><h2>{searchMode?"No matching emails":gmail.connected?"No messages here":"Connect your Gmail"}</h2><p>{searchMode?`Gmail did not find messages matching “${gmailSearchQuery}”.`:gmail.connected?`Your ${folder.toLowerCase()} folder is clear.`:"Open Connectors to load your real inbox."}</p></div>}</div>
       </section>}
 
       {view==="mail"&&opened&&<section className="reader">
