@@ -45,13 +45,16 @@ async function gmailRecipients(userEmail: string, escapedSearch: string): Promis
   const queries = escapedSearch
     ? [escapedSearch, `from:${escapedSearch} OR to:${escapedSearch}`, `in:sent ${escapedSearch}`]
     : ["newer_than:2y"];
-  const lists = await Promise.all(queries.map(q => gmailFetch<MessageList>(userEmail, `/messages?${new URLSearchParams({ maxResults: escapedSearch ? "30" : "60", q })}`)));
+  const listResults = await Promise.allSettled(queries.map(q => gmailFetch<MessageList>(userEmail, `/messages?${new URLSearchParams({ maxResults: escapedSearch ? "30" : "60", q })}`)));
+  const lists = listResults.flatMap(result => result.status === "fulfilled" ? [result.value] : []);
+  if (!lists.length) throw listResults.find(result => result.status === "rejected")?.reason ?? new Error("Gmail contact search failed");
   const uniqueIds = [...new Set(lists.flatMap(list => (list.messages ?? []).map(message => message.id)))].slice(0, 60);
   const messages: GmailMessage[] = [];
   for (let index = 0; index < uniqueIds.length; index += 20) {
-    messages.push(...await Promise.all(uniqueIds.slice(index, index + 20).map(id =>
+    const results = await Promise.allSettled(uniqueIds.slice(index, index + 20).map(id =>
       gmailFetch<GmailMessage>(userEmail, `/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=From&metadataHeaders=To`),
-    )));
+    ));
+    messages.push(...results.flatMap(result => result.status === "fulfilled" ? [result.value] : []));
   }
   const counts = new Map<string, Recipient>();
   for (const message of messages) {
@@ -72,22 +75,24 @@ async function googleContacts(userEmail: string, search: string): Promise<Recipi
   if (search) {
     const query = encodeURIComponent(search);
     const readMask = "names,emailAddresses";
-    const [contacts, other] = await Promise.all([
+    const [contacts, other] = await Promise.allSettled([
       peopleFetch<PeopleSearch>(userEmail, `/people:searchContacts?query=${query}&readMask=${readMask}&pageSize=30`),
       peopleFetch<PeopleSearch>(userEmail, `/otherContacts:search?query=${query}&readMask=${readMask}&pageSize=30`),
     ]);
+    if (contacts.status === "rejected" && other.status === "rejected") throw contacts.reason;
     return [
-      ...(contacts.results ?? []).flatMap(result => result.person ? personRecipients(result.person, 2_000) : []),
-      ...(other.results ?? []).flatMap(result => result.person ? personRecipients(result.person, 1_500) : []),
+      ...(contacts.status === "fulfilled" ? contacts.value.results ?? [] : []).flatMap(result => result.person ? personRecipients(result.person, 2_000) : []),
+      ...(other.status === "fulfilled" ? other.value.results ?? [] : []).flatMap(result => result.person ? personRecipients(result.person, 1_500) : []),
     ];
   }
-  const [contacts, other] = await Promise.all([
+  const [contacts, other] = await Promise.allSettled([
     peopleFetch<Connections>(userEmail, "/people/me/connections?personFields=names,emailAddresses&pageSize=250&sortOrder=LAST_MODIFIED_DESCENDING"),
     peopleFetch<OtherContacts>(userEmail, "/otherContacts?readMask=names,emailAddresses&pageSize=250"),
   ]);
+  if (contacts.status === "rejected" && other.status === "rejected") throw contacts.reason;
   return [
-    ...(contacts.connections ?? []).flatMap(person => personRecipients(person, 2_000)),
-    ...(other.otherContacts ?? []).flatMap(person => personRecipients(person, 1_500)),
+    ...(contacts.status === "fulfilled" ? contacts.value.connections ?? [] : []).flatMap(person => personRecipients(person, 2_000)),
+    ...(other.status === "fulfilled" ? other.value.otherContacts ?? [] : []).flatMap(person => personRecipients(person, 1_500)),
   ];
 }
 

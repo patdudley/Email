@@ -70,8 +70,10 @@ test("includes baseline mailbox actions", async () => {
   assert.match(recipients, /people:searchContacts/);
   assert.match(recipients, /otherContacts:search/);
   assert.match(recipients, /automatedAddress/);
+  assert.match(recipients, /Promise\.allSettled\(queries\.map/);
   assert.match(page, /loadRecipientSuggestions\(query\)/);
   assert.match(page, /Get Gmail-quality contact suggestions/);
+  assert.match(page, /console\.cloud\.google\.com\/apis\/library\/people\.googleapis\.com/);
   assert.match(page, /Recent matching emails/);
   assert.match(page, /Search all email for/);
   assert.match(page, /function inboxDate/);
