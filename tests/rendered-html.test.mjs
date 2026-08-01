@@ -57,12 +57,16 @@ test("includes baseline mailbox actions", async () => {
   assert.match(page, /Frequently contacted/);
   assert.match(page, /Search anyone in Gmail/);
   assert.match(page, /scheduleRecipientSearch/);
+  assert.match(page, /Promise\.allSettled\(lookups\)/);
+  assert.match(page, /\/api\/gmail\/suggestions\?q=/);
+  assert.match(page, /,60\);/);
+  assert.match(page, /recipientQuery\.length>=2\?16:8/);
   assert.match(page, /aria-autocomplete="list"/);
   assert.match(page, /handleRecipientKey/);
-  assert.match(recipients, /maxResults:\s*escapedSearch\s*\?\s*"12"\s*:\s*"40"/);
+  assert.match(recipients, /maxResults:\s*escapedSearch\s*\?\s*"30"\s*:\s*"60"/);
   assert.match(recipients, /format=metadata&metadataHeaders=From&metadataHeaders=To/);
   assert.match(recipients, /message\.labelIds\?\.includes\("SENT"\)/);
-  assert.ok(recipients.includes('{from:"${escapedSearch}" to:"${escapedSearch}"}'));
+  assert.match(recipients, /const gmailQuery = escapedSearch \|\| "newer_than:2y"/);
   assert.match(recipients, /b\.count - a\.count/);
   assert.match(page, /Recent matching emails/);
   assert.match(page, /Search all email for/);

@@ -154,7 +154,7 @@ export default function Home(){
   const activeTask=savedTasks.find(task=>task.id===activeTaskId)??null;
   const visibleTasks=savedTasks.filter(task=>task.status===taskFilter);
   const recipientQuery=composeTo.split(",").at(-1)?.trim().toLowerCase()??"";
-  const visibleRecipientSuggestions=recipientSuggestions.filter(recipient=>!recipientQuery||recipientSuggestionQuery===recipientQuery||recipient.name.toLowerCase().includes(recipientQuery)||recipient.email.includes(recipientQuery)).slice(0,8);
+  const visibleRecipientSuggestions=recipientSuggestions.filter(recipient=>!recipientQuery||recipientSuggestionQuery===recipientQuery||recipient.name.toLowerCase().includes(recipientQuery)||recipient.email.includes(recipientQuery)).slice(0,recipientQuery.length>=2?16:8);
   const gmailPageSize=searchMode?25:50;
   useEffect(()=>{
     void loadAccount(false);
@@ -249,7 +249,7 @@ export default function Home(){
   async function loadRecipientSuggestions(query=recipientQuery){
     setRecipientSuggestionsOpen(true);setActiveRecipientSuggestion(0);
     const normalized=query.trim().toLowerCase();
-    if((recipientSuggestionQuery===normalized&&recipientSuggestions.length)||!gmail.connected)return;
+    if(!gmail.connected)return;
     if(!normalized&&!recipientSuggestions.length){
       const recent=new Map<string,RecipientSuggestion>();
       for(const message of mail){const email=message.email.trim().toLowerCase();if(!email||email===gmail.email?.toLowerCase())continue;const current=recent.get(email);recent.set(email,current?{...current,count:current.count+1}:{name:message.sender,email,count:1})}
@@ -257,13 +257,30 @@ export default function Home(){
     }
     const requestId=++recipientRequestId.current;
     setRecipientSuggestionsLoading(true);
-    try{const params=new URLSearchParams();if(normalized.length>=2)params.set("q",normalized);const response=await fetch(`/api/gmail/recipients${params.size?`?${params}`:""}`,{cache:"no-store"});const json=await response.json() as {recipients?:RecipientSuggestion[];error?:string};if(!response.ok)throw new Error(json.error??"Could not load frequent recipients");if(requestId===recipientRequestId.current){setRecipientSuggestions(json.recipients??[]);setRecipientSuggestionQuery(normalized.length>=2?normalized:"")}}
-    catch(error){if(requestId===recipientRequestId.current)notify(error instanceof Error?error.message:"Could not load frequent recipients")}finally{if(requestId===recipientRequestId.current)setRecipientSuggestionsLoading(false)}
+    const applyResults=(items:RecipientSuggestion[])=>{
+      if(requestId!==recipientRequestId.current)return;
+      setRecipientSuggestions(current=>{
+        const merged=new Map<string,RecipientSuggestion>();
+        for(const recipient of [...items,...current]){
+          if(normalized&&!`${recipient.name} ${recipient.email}`.toLowerCase().includes(normalized))continue;
+          const existing=merged.get(recipient.email);if(!existing||recipient.count>existing.count)merged.set(recipient.email,recipient);
+        }
+        return [...merged.values()].sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name)).slice(0,40);
+      });
+      setRecipientSuggestionQuery(normalized.length>=2?normalized:"");
+    };
+    const lookups:Array<Promise<void>>=[];
+    if(normalized.length>=2)lookups.push(fetch(`/api/gmail/suggestions?q=${encodeURIComponent(normalized)}`,{cache:"no-store"}).then(async response=>{const json=await response.json() as {contacts?:RecipientSuggestion[];error?:string};if(!response.ok)throw new Error(json.error??"Could not search Gmail");applyResults(json.contacts??[])}));
+    const params=new URLSearchParams();if(normalized.length>=2)params.set("q",normalized);
+    lookups.push(fetch(`/api/gmail/recipients${params.size?`?${params}`:""}`,{cache:"no-store"}).then(async response=>{const json=await response.json() as {recipients?:RecipientSuggestion[];error?:string};if(!response.ok)throw new Error(json.error??"Could not load recipients");applyResults(json.recipients??[])}));
+    const results=await Promise.allSettled(lookups);
+    if(requestId===recipientRequestId.current){setRecipientSuggestionsLoading(false);if(results.every(result=>result.status==="rejected"))notify("Could not search Gmail recipients")}
   }
   function scheduleRecipientSearch(value:string){
     if(recipientSearchTimer.current)window.clearTimeout(recipientSearchTimer.current);
+    recipientRequestId.current+=1;
     const query=value.split(",").at(-1)?.trim().toLowerCase()??"";
-    recipientSearchTimer.current=window.setTimeout(()=>void loadRecipientSuggestions(query.length>=2?query:""),150);
+    recipientSearchTimer.current=window.setTimeout(()=>void loadRecipientSuggestions(query.length>=2?query:""),60);
   }
   function selectRecipient(recipient:RecipientSuggestion){
     const recipients=composeTo.split(",");recipients[recipients.length-1]=recipient.email;setComposeTo(recipients.map(value=>value.trim()).filter(Boolean).join(", "));setRecipientSuggestionsOpen(false);setActiveRecipientSuggestion(0);
