@@ -91,6 +91,17 @@ function uniqueImages(images: Array<{ src: string; alt: string }>): Array<{ src:
   }).slice(0, 20);
 }
 
+export function sanitizeEmailHtml(html: string): string {
+  const cleaned = html
+    .replace(/<(script|iframe|object|embed|applet|form|svg|math)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<(meta|base|link|input|button|textarea|select|option)\b[^>]*\/?\s*>/gi, "")
+    .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/\s+(href|src|action)\s*=\s*(["'])\s*(?:javascript|vbscript|data\s*:\s*text\/html)[\s\S]*?\2/gi, ' $1="#"');
+  const frameHead = `<base target="_blank"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;background:#fff;overflow-wrap:anywhere}img{max-width:100%!important;height:auto!important}</style>`;
+  if (/<head\b[^>]*>/i.test(cleaned)) return cleaned.replace(/<head\b[^>]*>/i, (head) => `${head}${frameHead}`);
+  return `<!doctype html><html><head>${frameHead}</head><body>${cleaned}</body></html>`;
+}
+
 export function displayName(from: string): { name: string; email: string } {
   const match = from.match(/^\s*"?([^"<]*)"?\s*<([^>]+)>/);
   if (match) return { name: match[1].trim() || match[2], email: match[2] };
@@ -125,6 +136,13 @@ export function summarizeThread(thread: GmailThread) {
     images,
     threadId: thread.id,
   };
+}
+
+export function summarizeDetailedThread(thread: GmailThread) {
+  const summary = summarizeThread(thread);
+  const latest = thread.messages?.at(-1);
+  const rawHtml = htmlFromPart(latest?.payload);
+  return { ...summary, html: rawHtml ? sanitizeEmailHtml(rawHtml) : undefined };
 }
 
 function encodeBase64Url(value: string): string {

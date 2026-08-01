@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Work = { title:string; next:string; deadline?:string; instruction:string };
-type Mail = { id:string|number; threadId?:string; sender:string; email:string; initials:string; tone:string; subject:string; preview:string; time:string; date:string; unread?:boolean; starred?:boolean; body:string[]; images?:Array<{src:string;alt:string}>; attachment?:string; work?:Work };
+type Mail = { id:string|number; threadId?:string; sender:string; email:string; initials:string; tone:string; subject:string; preview:string; time:string; date:string; unread?:boolean; starred?:boolean; body:string[]; html?:string; images?:Array<{src:string;alt:string}>; attachment?:string; work?:Work };
 type Account = {email:string;displayName:string;plan:"free"|"pro";subscriptionStatus:string|null;cancelAtPeriodEnd:boolean;currentPeriodEnd:number|null;usage:number;limit:number;hasBillingAccount:boolean};
 
 const demoMail:Mail[]=[
@@ -55,6 +55,27 @@ function EmailBodyText({text}:{text:string}){
   return <>{content.map((item,index)=>item.kind==="image"
     ? <div className="inline-email-image" key={`${item.value}-${index}`}><EmailImage image={{src:item.value,alt:"Email image"}}/></div>
     : item.value.trim()&&<p key={index}>{item.value.replace(/^\s*Caption:\s*$/gim,"").split("\n").map((line,lineIndex,lines)=><span key={lineIndex}>{line}{lineIndex<lines.length-1&&<br/>}</span>)}</p>)}</>;
+}
+
+function EmailHtml({html}:{html:string}){
+  const frame=useRef<HTMLIFrameElement>(null);
+  const [height,setHeight]=useState(600);
+  const resize=useCallback(()=>{
+    const document=frame.current?.contentDocument;
+    if(!document)return;
+    const next=Math.max(320,document.documentElement.scrollHeight,document.body?.scrollHeight??0);
+    setHeight(Math.min(next+8,50000));
+  },[]);
+  useEffect(()=>{
+    const onResize=()=>resize();
+    window.addEventListener("resize",onResize);
+    return()=>window.removeEventListener("resize",onResize);
+  },[resize]);
+  return <iframe ref={frame} className="email-html" title="Email content" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcDoc={html} style={{height}} onLoad={()=>{
+    resize();
+    const document=frame.current?.contentDocument;
+    document?.querySelectorAll("img").forEach(image=>image.addEventListener("load",resize,{once:true}));
+  }}/>;
 }
 
 export default function Home(){
@@ -136,6 +157,14 @@ export default function Home(){
   function notify(text:string){setToast(text);window.setTimeout(()=>setToast(""),2300)}
   function convert(message:Mail){if(!converted.includes(message.id))setConverted(v=>[message.id,...v]);setTaskId(message.id);setView("tasks");setOpenId(null);notify("Task created with this email as context")}
   function chooseFolder(next:string){setView("mail");setFolder(next);setOpenId(null);setSelected([]);setGmailPage(0);setGmailPageTokens([""]);setGmailNextPageToken(null);if(gmail.connected)void loadGmail(next,"",0)}
+  function openMessage(message:Mail){
+    setView("mail");setOpenId(message.id);setAnswer(null);
+    if(unread.includes(message.id)){
+      setUnread(current=>current.filter(id=>id!==message.id));
+      if(gmail.connected)void fetch("/api/gmail/threads/modify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:[String(message.id)],action:"read"})});
+    }
+    if(gmail.connected)void loadGmailThread(String(message.id));
+  }
   function toggleSelected(id:string|number){setSelected(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id])}
   function toggleStar(id:string|number){if(gmail.connected){void gmailAction([id],starred.includes(id)?"unstar":"star");return}setStarred(current=>current.includes(id)?current.filter(item=>item!==id):[...current,id])}
   function toggleAll(){const ids=list.map(message=>message.id);setSelected(current=>ids.length>0&&ids.every(id=>current.includes(id))?current.filter(id=>!ids.includes(id)):[...new Set([...current,...ids])])}
@@ -191,6 +220,9 @@ export default function Home(){
   async function loadGmail(nextFolder=folder,pageToken=gmailPageTokens[gmailPage]??"",targetPage=gmailPage){
     setMailLoading(true);
     try{const params=new URLSearchParams({folder:nextFolder});if(pageToken)params.set("pageToken",pageToken);const response=await fetch(`/api/gmail/threads?${params}`,{cache:"no-store"});const json=await response.json() as {threads?:Mail[];nextPageToken?:string|null;error?:string};if(!response.ok)throw new Error(json.error??"Could not load Gmail");const threads=json.threads??[];setLiveMail(threads);setUnread(threads.filter(message=>message.unread).map(message=>message.id));setStarred(threads.filter(message=>message.starred).map(message=>message.id));setGmailPage(targetPage);setGmailNextPageToken(json.nextPageToken??null);setGmailPageTokens(current=>{const next=current.slice(0,targetPage+1);next[targetPage]=pageToken;if(json.nextPageToken)next[targetPage+1]=json.nextPageToken;return next})}catch(error){notify(error instanceof Error?error.message:"Could not load Gmail")}finally{setMailLoading(false)}
+  }
+  async function loadGmailThread(threadId:string){
+    try{const response=await fetch(`/api/gmail/threads?threadId=${encodeURIComponent(threadId)}`,{cache:"no-store"});const json=await response.json() as {thread?:Mail;error?:string};if(!response.ok||!json.thread)throw new Error(json.error??"Could not load this email");setLiveMail(current=>current.map(message=>String(message.id)===threadId?{...message,...json.thread}:message))}catch(error){notify(error instanceof Error?error.message:"Could not load this email")}
   }
   function changeGmailPage(direction:-1|1){if(!gmail.connected||mailLoading)return;const target=gmailPage+direction;if(target<0)return;const token=direction===1?gmailNextPageToken:gmailPageTokens[target];if(token==null)return;setOpenId(null);setSelected([]);void loadGmail(folder,token,target)}
   async function gmailAction(ids:Array<string|number>,action:string,preserveOpen=false){
@@ -252,20 +284,19 @@ export default function Home(){
         <form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail}><span>✦</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={aiLoading?"Searching your email…":"Ask anything about your email…"} disabled={aiLoading}/><button aria-label="Ask Resolve" disabled={aiLoading}>{aiLoading?"…":"↑"}</button></form>
         <button className="avatar" aria-label="Open account and billing" onClick={()=>void loadAccount(true)}>{account?.displayName?.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"PD"}</button>
       </header>
-      {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>{setView("mail");setOpenId(id);setAnswer(null)}}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
+      {answer&&<section className="ai-answer"><header><span>✦</span><b>Resolve</b><button onClick={()=>setAnswer(null)}>×</button></header><p>{answer.text}</p>{answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id)!;return <button key={id} onClick={()=>openMessage(m)}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>})}</div>}</section>}
 
       {view==="mail"&&!opened&&<section className="inbox">
         <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={toggleSelectedStar}>☆ Star</button><button className="bulk-action" onClick={toggleSelectedUnread}>○ Read/unread</button>{customFolders.length>0&&!gmail.connected&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<><button aria-label="Refresh inbox" onClick={()=>gmail.connected?void loadGmail(folder,gmailPageTokens[gmailPage]??"",gmailPage):notify("Inbox refreshed")}>↻</button><span/><small>{mailLoading?"Loading…":list.length?`${gmail.connected?gmailPage*50+1:1}–${gmail.connected?gmailPage*50+list.length:list.length}`:"0"}</small><button aria-label="Previous email page" disabled={!gmail.connected||gmailPage===0||mailLoading} onClick={()=>changeGmailPage(-1)}>‹</button><button aria-label="Next email page" disabled={!gmail.connected||!gmailNextPageToken||mailLoading} onClick={()=>changeGmailPage(1)}>›</button></>}</div>
-        <div className="mail-list">{list.map(m=><article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>{setOpenId(m.id);if(unread.includes(m.id)){setUnread(current=>current.filter(id=>id!==m.id));if(gmail.connected)void gmailAction([m.id],"read",true)}}}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[String(m.id)]??m.preview}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&!mailLoading&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
+        <div className="mail-list">{list.map(m=><article key={m.id} className={`${unread.includes(m.id)?"unread ":""}${selected.includes(m.id)?"selected":""}`} onClick={()=>openMessage(m)}><button className="row-check" aria-label={`Select email from ${m.sender}`} aria-pressed={selected.includes(m.id)} onClick={e=>{e.stopPropagation();toggleSelected(m.id)}}>{selected.includes(m.id)?"✓":""}</button><button className={`row-star ${starred.includes(m.id)?"active":""}`} aria-label={`${starred.includes(m.id)?"Unstar":"Star"} email from ${m.sender}`} onClick={e=>{e.stopPropagation();toggleStar(m.id)}}>{starred.includes(m.id)?"★":"☆"}</button><span className={`initials ${m.tone}`}>{m.initials}</span><b>{m.sender}</b><div><strong>{m.subject}</strong><span className="ai-summary"><i>✦</i>{aiSummaries[String(m.id)]??m.preview}</span></div>{converted.includes(m.id)&&<em>Task</em>}<time>{m.time}</time></article>)}{list.length===0&&!mailLoading&&<div className="empty-folder"><span>✓</span><h2>No messages here</h2><p>Your {folder.toLowerCase()} folder is clear.</p></div>}</div>
       </section>}
 
       {view==="mail"&&opened&&<section className="reader">
-        <div className="reader-tools"><button title="Back" aria-label="Back to message list" onClick={()=>{setOpenId(null);setReplying(false)}}>←</button>{(gmail.connected?folder==="Trash":Boolean(locations[String(opened.id)]))?<button title="Move to Inbox" aria-label="Move to Inbox" onClick={restoreOpen}>↥</button>:<button title="Archive" aria-label="Archive" onClick={()=>moveOpen("Archive")}>▣</button>}<button title="Report spam" aria-label="Report spam" onClick={()=>moveOpen("Spam")}>!</button><button title="Move to Trash" aria-label="Move to Trash" onClick={()=>moveOpen("Trash")}>♲</button><button title="Snooze" aria-label="Snooze" onClick={()=>gmail.connected?notify("Gmail snooze is coming next"):moveOpen("Snoozed")}>◷</button><button title="Mark unread" aria-label="Mark unread" onClick={()=>gmail.connected?void gmailAction([opened.id],"unread"):(setUnread(current=>[...new Set([...current,opened.id])]),setOpenId(null),notify("Email marked unread"))}>○</button><button title={starred.includes(opened.id)?"Unstar":"Star"} aria-label={starred.includes(opened.id)?"Unstar":"Star"} className={starred.includes(opened.id)?"star-active":""} onClick={()=>toggleStar(opened.id)}>{starred.includes(opened.id)?"★":"☆"}</button><span/><button className="task-button" onClick={()=>convert(opened)}>{converted.includes(opened.id)?"Open task":"＋ Add to tasks"}</button></div>
+        <div className="reader-tools"><button data-tooltip="Back" aria-label="Back to message list" onClick={()=>{setOpenId(null);setReplying(false)}}>←</button>{(gmail.connected?folder==="Trash":Boolean(locations[String(opened.id)]))?<button data-tooltip="Move to Inbox" aria-label="Move to Inbox" onClick={restoreOpen}>↥</button>:<button data-tooltip="Archive" aria-label="Archive" onClick={()=>moveOpen("Archive")}>▣</button>}<button data-tooltip="Report spam" aria-label="Report spam" onClick={()=>moveOpen("Spam")}>!</button><button data-tooltip="Move to Trash" aria-label="Move to Trash" onClick={()=>moveOpen("Trash")}>♲</button><button data-tooltip="Snooze" aria-label="Snooze" onClick={()=>gmail.connected?notify("Gmail snooze is coming next"):moveOpen("Snoozed")}>◷</button><button data-tooltip="Mark unread" aria-label="Mark unread" onClick={()=>gmail.connected?void gmailAction([opened.id],"unread"):(setUnread(current=>[...new Set([...current,opened.id])]),setOpenId(null),notify("Email marked unread"))}>○</button><button data-tooltip={starred.includes(opened.id)?"Unstar":"Star"} aria-label={starred.includes(opened.id)?"Unstar":"Star"} className={starred.includes(opened.id)?"star-active":""} onClick={()=>toggleStar(opened.id)}>{starred.includes(opened.id)?"★":"☆"}</button><span/><button className="task-button" onClick={()=>convert(opened)}>{converted.includes(opened.id)?"Open task":"＋ Add to tasks"}</button></div>
         <div className="message">
           <h1>{opened.subject}</h1>
           <div className="sender"><span className={`initials ${opened.tone}`}>{opened.initials}</span><div><b>{opened.sender}</b><p>{opened.email} · to me</p></div><time>{opened.date}</time></div>
-          <div className="copy">{opened.body.map((part,index)=><EmailBodyText key={index} text={part}/>)}</div>
-          {opened.images&&opened.images.filter(image=>!opened.body.flatMap(imageUrlsInText).includes(image.src)).length>0&&<div className="email-images">{opened.images.filter(image=>!opened.body.flatMap(imageUrlsInText).includes(image.src)).map((image,index)=><EmailImage key={`${image.src}-${index}`} image={image}/>)}</div>}
+          {opened.html?<EmailHtml html={opened.html}/>:<><div className="copy">{opened.body.map((part,index)=><EmailBodyText key={index} text={part}/>)}</div>{opened.images&&opened.images.filter(image=>!opened.body.flatMap(imageUrlsInText).includes(image.src)).length>0&&<div className="email-images">{opened.images.filter(image=>!opened.body.flatMap(imageUrlsInText).includes(image.src)).map((image,index)=><EmailImage key={`${image.src}-${index}`} image={image}/>)}</div>}</>}
           {opened.attachment&&<button className="attachment" onClick={()=>notify(`${opened.attachment} downloaded`)}><span>PDF</span><div><b>{opened.attachment}</b><small>248 KB</small></div><strong>↓</strong></button>}
           {!replying?<div className="reply-actions"><button onClick={()=>startReply("reply")}>↩ Reply</button><button onClick={()=>startReply("replyAll")}>↩ Reply all</button><button onClick={()=>startReply("forward")}>→ Forward</button><button onClick={()=>{setReplyMode("reply");setReply(`Hi ${opened.sender.split(" ")[0]},\n\nThanks for the update. I’ll take care of this and follow up shortly.\n\nBest,\nPat`);setReplying(true)}}>✦ Draft reply</button></div>:<div className="reply-box"><div>{replyMode==="forward"?<>To <input aria-label="Forward recipient" autoFocus value={forwardTo} onChange={e=>setForwardTo(e.target.value)} placeholder="Recipient email"/></>:<>To <b>{opened.sender}</b>{replyMode==="replyAll"&&<span> · all recipients</span>}</>}</div><textarea autoFocus={replyMode!=="forward"} value={reply} onChange={e=>setReply(e.target.value)}/><footer><button className="send" onClick={sendReply}>{replyMode==="forward"?"Forward":"Send"}</button><button onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button onClick={()=>{setReplying(false);setReply("")}}>Discard</button></footer></div>}
         </div>
@@ -274,7 +305,7 @@ export default function Home(){
       {view==="tasks"&&<section className="tasks">
         <div className="task-list"><header><h1>Tasks</h1><button onClick={()=>notify("New blank task created")}>＋</button></header>{tasks.map(m=>{const w=suggestedWork(m);return <article key={m.id} className={task.id===m.id?"active":""} onClick={()=>setTaskId(m.id)}><button>□</button><div><h2>{w.title}</h2><p>{w.next}</p><footer><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span>{m.sender}</span>{w.deadline&&<time>{w.deadline}</time>}</footer></div></article>})}</div>
         <div className="task-page">
-          <header><p>TASK</p><h1>{work.title}</h1><div className="task-source"><span className={`initials ${task.tone}`}>{task.initials}</span><div><b>{task.sender}</b><span>{task.subject}</span></div><button onClick={()=>{setView("mail");setOpenId(task.id)}}>Open email</button></div></header>
+          <header><p>TASK</p><h1>{work.title}</h1><div className="task-source"><span className={`initials ${task.tone}`}>{task.initials}</span><div><b>{task.sender}</b><span>{task.subject}</span></div><button onClick={()=>openMessage(task)}>Open email</button></div></header>
           <section className="task-body"><label>Next step</label><div className="next"><button>□</button><p>{work.next}</p>{work.deadline&&<time>{work.deadline}</time>}</div><label>Agent context</label><textarea value={contexts[task.id]??work.instruction} onChange={e=>setContexts(v=>({...v,[task.id]:e.target.value}))}/>{task.attachment&&<button className="context-file">▤ {task.attachment}</button>}
           <div className="agent"><header><span>✦</span><div><b>Resolve</b><small>Knows the email and context above</small></div></header><p>I can draft replies, find attachments, monitor the thread, and keep this task moving. I’ll ask before sending anything.</p><form onSubmit={e=>{e.preventDefault();if(prompt.trim()){notify("Instruction added");setPrompt("")}}}><input value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Tell Resolve what to do…"/><button>↑</button></form></div></section>
         </div>

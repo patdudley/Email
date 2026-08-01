@@ -1,6 +1,6 @@
 import { getChatGPTUser } from "../../../chatgpt-auth";
 import { gmailFetch } from "../../../../lib/google";
-import { type GmailThread, summarizeThread } from "../../../../lib/gmail-message";
+import { type GmailThread, summarizeDetailedThread, summarizeThread } from "../../../../lib/gmail-message";
 
 type ThreadList = { threads?: Array<{ id: string }>; nextPageToken?: string };
 
@@ -14,6 +14,12 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "Authentication required" }, { status: 401 });
   try {
     const url = new URL(request.url);
+    const threadId = url.searchParams.get("threadId")?.trim() ?? "";
+    if (threadId) {
+      if (!/^[a-zA-Z0-9_-]{1,200}$/.test(threadId)) return Response.json({ error: "Invalid Gmail thread" }, { status: 400 });
+      const thread = await gmailFetch<GmailThread>(user.email, `/threads/${encodeURIComponent(threadId)}?format=full`);
+      return Response.json({ thread: summarizeDetailedThread(thread) });
+    }
     const folder = url.searchParams.get("folder") ?? "Inbox";
     const pageToken = url.searchParams.get("pageToken")?.trim() ?? "";
     const config = folderQueries[folder] ?? { label: folder };

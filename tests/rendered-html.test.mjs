@@ -43,6 +43,11 @@ test("includes baseline mailbox actions", async () => {
   assert.match(page, /className="email-images"/);
   assert.match(page, /className="inline-email-image"/);
   assert.match(page, /function EmailBodyText/);
+  assert.match(page, /function EmailHtml/);
+  assert.match(page, /sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"/);
+  for (const tooltip of ["Back", "Archive", "Report spam", "Move to Trash", "Snooze", "Mark unread"]) {
+    assert.match(page, new RegExp(`data-tooltip="${tooltip}"`, "i"));
+  }
   assert.match(page, /referrerPolicy="no-referrer"/);
 });
 
@@ -64,11 +69,12 @@ test("enforces AI usage and paid access on the server", async () => {
 });
 
 test("supports scrollable 50-message Gmail pages and bounded AI context", async () => {
-  const [threads, chat, page, css] = await Promise.all([
+  const [threads, chat, page, css, gmailMessage] = await Promise.all([
     readFile(new URL("../app/api/gmail/threads/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/ai/chat/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../lib/gmail-message.ts", import.meta.url), "utf8"),
   ]);
   assert.match(threads, /maxResults:\s*"50"/);
   assert.match(threads, /pageToken/);
@@ -79,6 +85,10 @@ test("supports scrollable 50-message Gmail pages and bounded AI context", async 
   assert.match(chat, /maxResults:\s*"30"/);
   assert.match(chat, /42_000/);
   assert.doesNotMatch(chat, /Email context is too large/);
+  assert.match(threads, /threadId/);
+  assert.match(threads, /summarizeDetailedThread/);
+  assert.match(gmailMessage, /sanitizeEmailHtml/);
+  assert.match(gmailMessage, /script\|iframe\|object\|embed/);
 });
 
 test("protects Gmail authorization and connector credentials", async () => {
