@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Work = { title:string; next:string; deadline?:string; instruction:string };
-type Mail = { id:string|number; threadId?:string; sender:string; email:string; initials:string; tone:string; subject:string; preview:string; time:string; date:string; unread?:boolean; starred?:boolean; body:string[]; attachment?:string; work?:Work };
+type Mail = { id:string|number; threadId?:string; sender:string; email:string; initials:string; tone:string; subject:string; preview:string; time:string; date:string; unread?:boolean; starred?:boolean; body:string[]; images?:Array<{src:string;alt:string}>; attachment?:string; work?:Work };
 type Account = {email:string;displayName:string;plan:"free"|"pro";subscriptionStatus:string|null;cancelAtPeriodEnd:boolean;currentPeriodEnd:number|null;usage:number;limit:number;hasBillingAccount:boolean};
 
 const demoMail:Mail[]=[
@@ -29,6 +29,12 @@ const aiSummaries:Record<string,string>={
 };
 
 function suggestedWork(message:Mail):Work{return message.work??{title:message.subject,next:"Review this email",instruction:`Use the full email from ${message.sender} as context. Help me decide and complete the next action, but ask before sending anything.`}}
+
+function EmailImage({image}:{image:{src:string;alt:string}}){
+  // Remote email assets cannot use the framework image optimizer because their hosts are arbitrary.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={image.src} alt={image.alt} loading="lazy" referrerPolicy="no-referrer"/>;
+}
 
 export default function Home(){
   const [view,setView]=useState<"mail"|"tasks"|"connectors">("mail");
@@ -238,6 +244,7 @@ export default function Home(){
           <h1>{opened.subject}</h1>
           <div className="sender"><span className={`initials ${opened.tone}`}>{opened.initials}</span><div><b>{opened.sender}</b><p>{opened.email} · to me</p></div><time>{opened.date}</time></div>
           <div className="copy">{opened.body.map((p,i)=><p key={i}>{p.split("\n").map((line,j)=><span key={j}>{line}{j<p.split("\n").length-1&&<br/>}</span>)}</p>)}</div>
+          {opened.images&&opened.images.length>0&&<div className="email-images">{opened.images.map((image,index)=><EmailImage key={`${image.src}-${index}`} image={image}/>)}</div>}
           {opened.attachment&&<button className="attachment" onClick={()=>notify(`${opened.attachment} downloaded`)}><span>PDF</span><div><b>{opened.attachment}</b><small>248 KB</small></div><strong>↓</strong></button>}
           {!replying?<div className="reply-actions"><button onClick={()=>startReply("reply")}>↩ Reply</button><button onClick={()=>startReply("replyAll")}>↩ Reply all</button><button onClick={()=>startReply("forward")}>→ Forward</button><button onClick={()=>{setReplyMode("reply");setReply(`Hi ${opened.sender.split(" ")[0]},\n\nThanks for the update. I’ll take care of this and follow up shortly.\n\nBest,\nPat`);setReplying(true)}}>✦ Draft reply</button></div>:<div className="reply-box"><div>{replyMode==="forward"?<>To <input aria-label="Forward recipient" autoFocus value={forwardTo} onChange={e=>setForwardTo(e.target.value)} placeholder="Recipient email"/></>:<>To <b>{opened.sender}</b>{replyMode==="replyAll"&&<span> · all recipients</span>}</>}</div><textarea autoFocus={replyMode!=="forward"} value={reply} onChange={e=>setReply(e.target.value)}/><footer><button className="send" onClick={sendReply}>{replyMode==="forward"?"Forward":"Send"}</button><button onClick={()=>notify("Attachment picker opened")}>＋ Attach</button><span/><button onClick={()=>{setReplying(false);setReply("")}}>Discard</button></footer></div>}
         </div>

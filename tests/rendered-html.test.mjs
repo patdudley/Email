@@ -28,10 +28,17 @@ test("renders the Resolve application shell", async () => {
 });
 
 test("includes baseline mailbox actions", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const [page, gmailMessage] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../lib/gmail-message.ts", import.meta.url), "utf8"),
+  ]);
   for (const action of ["Archive", "Spam", "Trash", "Forward", "Reply all", "Mark unread", "Snooze"]) {
     assert.match(page, new RegExp(action, "i"));
   }
+  assert.match(gmailMessage, /remoteImagesFromPart/);
+  assert.match(gmailMessage, /\^https\?:\\\/\\\//);
+  assert.match(page, /className="email-images"/);
+  assert.match(page, /referrerPolicy="no-referrer"/);
 });
 
 test("enforces AI usage and paid access on the server", async () => {
