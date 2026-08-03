@@ -79,15 +79,17 @@ test("includes baseline mailbox actions", async () => {
   assert.match(page, /function inboxDate/);
   assert.match(page, /dateTime=\{m\.date\}/);
   assert.match(page, /<b>\{inboxDate\(m\.date\)\}<\/b><small>\{m\.time\}<\/small>/);
-  assert.match(page, /function suggestedAction/);
-  assert.match(page, /Suggested action:/);
-  assert.match(page, /runSuggestedAction/);
-  assert.match(css, /\.suggested-action/);
-  assert.match(css, /content:"Suggested action"/);
-  assert.match(css, /\.suggested-action\.reply\{background:var\(--light-blue\)/);
-  assert.match(css, /\.suggested-action\.read\{background:var\(--navy\)/);
-  assert.match(css, /\.suggested-action\.archive\{background:var\(--pink\)/);
-  assert.match(css, /\.suggested-action small\{display:none\}/);
+  assert.doesNotMatch(page, /Suggested action:/);
+  assert.doesNotMatch(page, /runSuggestedAction/);
+  assert.match(page, /className="row-archive"/);
+  assert.match(page, /archiveMessage/);
+  assert.match(page, /Inbox display size/);
+  assert.match(page, /resolve-mail-density/);
+  for (const density of ["compact", "standard", "large"]) {
+    assert.match(page, new RegExp(`value="${density}"`, "i"));
+    assert.match(css, new RegExp(`density-${density}`, "i"));
+  }
+  assert.match(css, /\.row-archive/);
   assert.match(page, /localSearchSuggestions/);
   assert.match(page, /scheduleSearchPreview/);
   assert.match(page, /\/api\/gmail\/suggestions/);
