@@ -142,6 +142,7 @@ export default function Home(){
   const [gmailPage,setGmailPage]=useState(0);
   const [gmailPageTokens,setGmailPageTokens]=useState<string[]>([""]);
   const [gmailNextPageToken,setGmailNextPageToken]=useState<string|null>(null);
+  const gmailMutationId=useRef(0);
   const mail=liveMail;
   const list=useMemo(()=>{
     if(gmail.connected)return mail;
@@ -398,7 +399,29 @@ export default function Home(){
   function clearEmailSearch(){setAnswer(null);setSearchMode(false);setGmailSearchQuery("");setSearch("");setGmailPage(0);setGmailPageTokens([""]);setGmailNextPageToken(null);void loadGmail(folder,"",0)}
   function changeGmailPage(direction:-1|1){if(!gmail.connected||mailLoading)return;const target=gmailPage+direction;if(target<0)return;const token=direction===1?gmailNextPageToken:gmailPageTokens[target];if(token==null)return;setOpenId(null);setSelected([]);if(searchMode)void loadGmailSearchPage(gmailSearchQuery,token,target);else void loadGmail(folder,token,target)}
   async function gmailAction(ids:Array<string|number>,action:string,preserveOpen=false){
-    try{const response=await fetch("/api/gmail/threads/modify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:ids.map(String),action})});const json=await response.json() as {error?:string};if(!response.ok)throw new Error(json.error??"Gmail action failed");setSelected([]);if(!preserveOpen)setOpenId(null);if(searchMode)await loadGmailSearchPage(gmailSearchQuery,gmailPageTokens[gmailPage]??"",gmailPage);else await loadGmail(folder,gmailPageTokens[gmailPage]??"",gmailPage);if(!preserveOpen)notify(`${ids.length} email${ids.length===1?"":"s"} updated`)}catch(error){notify(error instanceof Error?error.message:"Gmail action failed")}
+    const mutationId=++gmailMutationId.current;
+    const keys=new Set(ids.map(String));
+    const snapshot={mail:liveMail,selected,unread,starred,openId};
+    const removeFromView=(action==="archive"&&folder==="Inbox")||(action==="spam"&&folder!=="Spam")||(action==="trash"&&folder!=="Trash")||(action==="restore"&&folder==="Trash")||(action==="unstar"&&folder==="Starred");
+    if(removeFromView)setLiveMail(current=>current.filter(message=>!keys.has(String(message.id))));
+    if(action==="read")setUnread(current=>current.filter(id=>!keys.has(String(id))));
+    if(action==="unread")setUnread(current=>[...new Set([...current,...ids])]);
+    if(action==="star")setStarred(current=>[...new Set([...current,...ids])]);
+    if(action==="unstar")setStarred(current=>current.filter(id=>!keys.has(String(id))));
+    setSelected(current=>current.filter(id=>!keys.has(String(id))));
+    const movesMessage=["archive","spam","trash","restore"].includes(action);
+    if(movesMessage&&!preserveOpen)setOpenId(null);
+    const labels:Record<string,string>={archive:"Archived",spam:"Moved to spam",trash:"Moved to trash",restore:"Moved to inbox",read:"Marked read",unread:"Marked unread",star:"Starred",unstar:"Unstarred"};
+    notify(`${ids.length>1?`${ids.length} emails`:"Email"} ${labels[action]?.toLowerCase()??"updated"}`);
+    try{
+      const response=await fetch("/api/gmail/threads/modify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:ids.map(String),action})});
+      const json=await response.json() as {error?:string};
+      if(!response.ok)throw new Error(json.error??"Gmail action failed");
+    }catch(error){
+      if(mutationId===gmailMutationId.current){setLiveMail(snapshot.mail);setSelected(snapshot.selected);setUnread(snapshot.unread);setStarred(snapshot.starred);setOpenId(snapshot.openId)}
+      else if(searchMode)void loadGmailSearchPage(gmailSearchQuery,gmailPageTokens[gmailPage]??"",gmailPage);else void loadGmail(folder,gmailPageTokens[gmailPage]??"",gmailPage);
+      notify(error instanceof Error?`${error.message} — change reversed`:"Gmail action failed — change reversed");
+    }
   }
   async function sendGmail(message:{to:string;cc?:string;subject:string;body:string;html?:string;attachments?:OutgoingAttachment[];threadId?:string}){try{const response=await fetch("/api/gmail/send",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(message)});const json=await response.json() as {error?:string};if(!response.ok)throw new Error(json.error??"Could not send email");return true}catch(error){notify(error instanceof Error?error.message:"Could not send email");return false}}
   async function disconnectGmail(){if(!window.confirm("Disconnect Gmail from Resolve?"))return;await fetch("/api/connectors/google",{method:"DELETE"});setGmail({connected:false,email:null});setLiveMail([]);setFolder("Inbox");setGmailPage(0);setGmailPageTokens([""]);setGmailNextPageToken(null);setOpenId(null);notify("Gmail disconnected")}

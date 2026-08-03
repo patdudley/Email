@@ -30,7 +30,9 @@ export async function GET(request: Request) {
     if (config.q) params.set("q", config.q);
     if (folder === "Spam" || folder === "Trash") params.set("includeSpamTrash", "true");
     const list = await gmailFetch<ThreadList>(user.email, `/threads?${params}`);
-    const threads = await Promise.all((list.threads ?? []).map(({ id }) => gmailFetch<GmailThread>(user.email, `/threads/${encodeURIComponent(id)}?format=full`)));
+    const metadata = new URLSearchParams({ format: "metadata" });
+    for (const name of ["From", "Subject", "Date"]) metadata.append("metadataHeaders", name);
+    const threads = await Promise.all((list.threads ?? []).map(({ id }) => gmailFetch<GmailThread>(user.email, `/threads/${encodeURIComponent(id)}?${metadata}`)));
     return Response.json({ threads: threads.map(summarizeThread), nextPageToken: list.nextPageToken ?? null });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Could not load Gmail" }, { status: 502 });

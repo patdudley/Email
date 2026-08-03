@@ -160,6 +160,23 @@ test("supports scrollable 50-message Gmail pages and bounded AI context", async 
   assert.match(gmailMessage, /script\|iframe\|object\|embed/);
 });
 
+test("keeps Gmail navigation and mailbox actions responsive", async () => {
+  const [page, threads, googleSource] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/gmail/threads/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/google.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /const removeFromView=/);
+  assert.match(page, /setLiveMail\(current=>current\.filter/);
+  assert.match(page, /change reversed/);
+  assert.match(page, /gmailMutationId/);
+  assert.match(threads, /format:\s*"metadata"/);
+  assert.match(threads, /metadataHeaders/);
+  assert.match(googleSource, /accessTokenCache/);
+  assert.match(googleSource, /accessTokenRefreshes/);
+  assert.match(googleSource, /if \(refreshing\) return refreshing/);
+});
+
 test("protects Gmail authorization and connector credentials", async () => {
   const [start, callback, cryptoSource, googleSource, page] = await Promise.all([
     readFile(new URL("../app/api/connectors/google/start/route.ts", import.meta.url), "utf8"),
