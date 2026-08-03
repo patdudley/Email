@@ -21,15 +21,16 @@ export async function POST(){
     const period=taskPeriod(task);
     const existing=await db.prepare("SELECT 1 AS found FROM task_completions WHERE task_id=? AND period_key=?").bind(task.id,period.key).first<{found:number}>();
     if(existing)continue;
-    const afterEpoch=Math.max(task.createdAt,Math.floor(period.startsAt.getTime()/1000)-1);
-    const params=new URLSearchParams({maxResults:"8",q:paymentEvidenceQuery(task,afterEpoch)});
+    const periodStart=Math.floor(period.startsAt.getTime()/1000);
+    const isRentTask=/\brent\b/i.test(`${task.title} ${task.description}`);
+    const lookbackDays=isRentTask?10:3;
+    const afterEpoch=task.recurrenceType==="recurring"?periodStart-lookbackDays*86_400:Math.max(task.createdAt-30*86_400,Math.floor(Date.now()/1000)-45*86_400);
+    const params=new URLSearchParams({maxResults:"20",q:paymentEvidenceQuery(task,afterEpoch)});
     const list=await gmailFetch<ThreadList>(email,`/threads?${params}`);
     let evidence:ReturnType<typeof summarizeThread>|null=null;
     for(const item of list.threads??[]){
-      const metadata=new URLSearchParams({format:"metadata"});
-      for(const header of ["From","Subject","Date"])metadata.append("metadataHeaders",header);
-      const summary=summarizeThread(await gmailFetch<GmailThread>(email,`/threads/${encodeURIComponent(item.id)}?${metadata}`));
-      if(isStrongCompletionEvidence(task,`${summary.subject}\n${summary.preview}`)){evidence=summary;break}
+      const summary=summarizeThread(await gmailFetch<GmailThread>(email,`/threads/${encodeURIComponent(item.id)}?format=full`));
+      if(isStrongCompletionEvidence(task,`${summary.sender} <${summary.email}>\n${summary.subject}\n${summary.preview}\n${summary.body.join("\n")}`)){evidence=summary;break}
     }
     if(!evidence)continue;
     const now=Math.floor(Date.now()/1000);

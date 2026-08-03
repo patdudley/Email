@@ -25,15 +25,24 @@ const positivePaymentEvidence=[
 ];
 const nonCompletionEvidence=/\b(?:failed|declined|reversed|refunded|overdue|past due|payment due|rent due|reminder|scheduled|pending|will (?:be )?(?:pay|paid|process)|autopay (?:is |was )?(?:scheduled|pending))\b/i;
 
+function confirmedRentTransfer(task:PaymentTask,text:string):boolean{
+  if(!/\brent\b/i.test(`${task.title} ${task.description}`))return false;
+  if(!/\byou sent(?: money)?\b/i.test(text)||!/\b(?:confirmation|confirmed|completed|successful)\b/i.test(text))return false;
+  const amounts=[...text.matchAll(/\$\s*([\d,]+(?:\.\d{2})?)/g)].map(match=>Number(match[1].replace(/,/g,""))).filter(Number.isFinite);
+  return amounts.some(amount=>amount>=500);
+}
+
 export function isStrongCompletionEvidence(task:PaymentTask,text:string):boolean{
   const normalized=text.replace(/\s+/g," ");
+  if(nonCompletionEvidence.test(normalized))return false;
+  if(confirmedRentTransfer(task,normalized))return true;
   const terms=taskEvidenceTerms(task);
   if(!terms.length||!terms.some(term=>normalized.toLowerCase().includes(term)))return false;
-  if(nonCompletionEvidence.test(normalized))return false;
   return positivePaymentEvidence.some(pattern=>pattern.test(normalized));
 }
 
 export function paymentEvidenceQuery(task:PaymentTask,afterEpoch:number):string{
+  if(/\brent\b/i.test(`${task.title} ${task.description}`))return `after:${afterEpoch} {rent "payment received" "rent paid" "You sent money with Zelle" "you sent money"}`;
   const terms=taskEvidenceTerms(task).map(term=>`"${term.replace(/"/g,"")}"`).join(" ");
   return `after:${afterEpoch} ${terms} {"payment received" "payment completed" "payment successful" "payment confirmed" "transaction receipt" "rent paid" "you paid"}`.trim();
 }

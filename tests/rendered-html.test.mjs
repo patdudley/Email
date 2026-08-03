@@ -237,6 +237,11 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(completionRules, /isStrongCompletionEvidence/);
   assert.match(completionRules, /nonCompletionEvidence/);
   assert.match(completionRules, /positivePaymentEvidence/);
+  assert.match(completionRules, /confirmedRentTransfer/);
+  assert.match(completionRules, /amount>=500/);
+  assert.match(completionRules, /You sent money with Zelle/);
+  assert.match(completionRoute, /lookbackDays=isRentTask\?10:3/);
+  assert.match(completionRoute, /format=full/);
   assert.match(taskRoute, /recurringOccurrence/);
   assert.match(taskRoute, /DELETE FROM task_completions/);
   assert.match(page, /detectTaskCompletions/);
