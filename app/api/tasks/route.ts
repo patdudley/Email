@@ -6,7 +6,7 @@ import { taskPeriod } from "../../../lib/task-period";
 type TaskRow = {
   id:string; title:string; description:string; deadline:string|null; status:string;
   recurrenceType:"one_time"|"recurring";recurrenceEvery:number|null;recurrenceUnit:"day"|"week"|"month"|null;
-  sourceThreadId:string|null; integrationType:"online_presence"|"drybar_payroll"|null; createdAt:number; updatedAt:number;
+  scheduleTime:string|null;sourceThreadId:string|null; integrationType:"online_presence"|"drybar_payroll"|null; createdAt:number; updatedAt:number;
 };
 
 type CompletionRow = {taskId:string;periodKey:string;evidenceThreadId:string|null;evidenceSubject:string|null;evidenceSender:string|null;evidenceDate:string|null;evidenceSummary:string|null;completedAt:number};
@@ -22,6 +22,11 @@ function attachCurrentCompletions(tasks:TaskRow[],completions:CompletionRow[]){
 function cleanDeadline(value:unknown):string|null {
   const deadline=String(value??"").trim();
   return /^\d{4}-\d{2}-\d{2}$/.test(deadline)?deadline:null;
+}
+
+function cleanScheduleTime(value:unknown):string|null {
+  const time=String(value??"").trim();
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)?time:null;
 }
 
 function cleanRecurrence(type:unknown,every:unknown,unit:unknown){
@@ -42,8 +47,8 @@ export async function GET(request:Request) {
   const id=new URL(request.url).searchParams.get("id");
   const db=getD1();
   const tasks=id
-    ? await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit,status,source_thread_id AS sourceThreadId,integration_type AS integrationType,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE user_email=? AND id=?`).bind(user.email.toLowerCase(),id).all<TaskRow>()
-    : await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit,status,source_thread_id AS sourceThreadId,integration_type AS integrationType,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE user_email=? ORDER BY updated_at DESC LIMIT 200`).bind(user.email.toLowerCase()).all<TaskRow>();
+    ? await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit,schedule_time AS scheduleTime,status,source_thread_id AS sourceThreadId,integration_type AS integrationType,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE user_email=? AND id=?`).bind(user.email.toLowerCase(),id).all<TaskRow>()
+    : await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit,schedule_time AS scheduleTime,status,source_thread_id AS sourceThreadId,integration_type AS integrationType,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE user_email=? ORDER BY updated_at DESC LIMIT 200`).bind(user.email.toLowerCase()).all<TaskRow>();
   const taskRows=tasks.results??[];
   const completions=taskRows.length?await db.prepare(`SELECT task_id AS taskId,period_key AS periodKey,evidence_thread_id AS evidenceThreadId,evidence_subject AS evidenceSubject,evidence_sender AS evidenceSender,evidence_date AS evidenceDate,evidence_summary AS evidenceSummary,completed_at AS completedAt FROM task_completions WHERE user_email=? ORDER BY completed_at DESC LIMIT 400`).bind(user.email.toLowerCase()).all<CompletionRow>():{results:[]};
   const tasksWithCompletions=attachCurrentCompletions(taskRows,completions.results??[]);
@@ -57,30 +62,39 @@ export async function GET(request:Request) {
 export async function POST(request:Request) {
   const user=await getChatGPTUser();
   if(!user)return Response.json({error:"Sign in to create tasks",signInUrl:chatGPTSignInPath("/")},{status:401});
-  const body=await request.json() as {title?:string;description?:string;deadline?:string;sourceThreadId?:string;integrationType?:string;recurrenceType?:string;recurrenceEvery?:number;recurrenceUnit?:string};
+  const body=await request.json() as {title?:string;description?:string;deadline?:string;sourceThreadId?:string;integrationType?:string;recurrenceType?:string;recurrenceEvery?:number;recurrenceUnit?:string;scheduleTime?:string};
   const title=body.title?.trim()??"";
   const description=body.description?.trim()??"";
   if(!title||title.length>200)return Response.json({error:"Add a title under 200 characters"},{status:400});
   if(!description||description.length>5000)return Response.json({error:"Add a description under 5,000 characters"},{status:400});
   await ensureUser(user);
   const recurrence=cleanRecurrence(body.recurrenceType,body.recurrenceEvery,body.recurrenceUnit);
-  const task:TaskRow={id:crypto.randomUUID(),title,description,deadline:cleanDeadline(body.deadline),...recurrence,status:"active",sourceThreadId:body.sourceThreadId?.trim()||null,integrationType:cleanIntegration(body.integrationType),createdAt:Math.floor(Date.now()/1000),updatedAt:Math.floor(Date.now()/1000)};
-  await getD1().prepare(`INSERT INTO tasks (id,user_email,title,description,deadline,recurrence_type,recurrence_every,recurrence_unit,status,source_thread_id,integration_type,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(task.id,user.email.toLowerCase(),task.title,task.description,task.deadline,task.recurrenceType,task.recurrenceEvery,task.recurrenceUnit,task.status,task.sourceThreadId,task.integrationType,task.createdAt,task.updatedAt).run();
+  const task:TaskRow={id:crypto.randomUUID(),title,description,deadline:cleanDeadline(body.deadline),...recurrence,scheduleTime:recurrence.recurrenceType==="recurring"?cleanScheduleTime(body.scheduleTime):null,status:"active",sourceThreadId:body.sourceThreadId?.trim()||null,integrationType:cleanIntegration(body.integrationType),createdAt:Math.floor(Date.now()/1000),updatedAt:Math.floor(Date.now()/1000)};
+  await getD1().prepare(`INSERT INTO tasks (id,user_email,title,description,deadline,recurrence_type,recurrence_every,recurrence_unit,schedule_time,status,source_thread_id,integration_type,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(task.id,user.email.toLowerCase(),task.title,task.description,task.deadline,task.recurrenceType,task.recurrenceEvery,task.recurrenceUnit,task.scheduleTime,task.status,task.sourceThreadId,task.integrationType,task.createdAt,task.updatedAt).run();
   return Response.json({task},{status:201});
 }
 
 export async function PATCH(request:Request) {
   const user=await getChatGPTUser();
   if(!user)return Response.json({error:"Sign in to update tasks",signInUrl:chatGPTSignInPath("/")},{status:401});
-  const body=await request.json() as {id?:string;status?:string};
+  const body=await request.json() as {id?:string;status?:string;title?:string;description?:string;deadline?:string|null;recurrenceType?:string;recurrenceEvery?:number;recurrenceUnit?:string;scheduleTime?:string|null};
   const id=body.id?.trim()??"";
   const status=body.status==="completed"?"completed":body.status==="active"?"active":"";
-  if(!id||!status)return Response.json({error:"Task id and valid status are required"},{status:400});
+  if(!id)return Response.json({error:"Task id is required"},{status:400});
   const db=getD1();
   const email=user.email.toLowerCase();
-  const task=await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit,status,source_thread_id AS sourceThreadId,integration_type AS integrationType,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE id=? AND user_email=?`).bind(id,email).first<TaskRow>();
+  const task=await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit,schedule_time AS scheduleTime,status,source_thread_id AS sourceThreadId,integration_type AS integrationType,created_at AS createdAt,updated_at AS updatedAt FROM tasks WHERE id=? AND user_email=?`).bind(id,email).first<TaskRow>();
   if(!task)return Response.json({error:"Task not found"},{status:404});
   const updatedAt=Math.floor(Date.now()/1000);
+  if(!status){
+    const title=body.title?.trim()??"";const description=body.description?.trim()??"";
+    if(!title||title.length>200)return Response.json({error:"Add a title under 200 characters"},{status:400});
+    if(!description||description.length>5000)return Response.json({error:"Add instructions under 5,000 characters"},{status:400});
+    const recurrence=cleanRecurrence(body.recurrenceType,body.recurrenceEvery,body.recurrenceUnit);
+    const deadline=cleanDeadline(body.deadline);const scheduleTime=recurrence.recurrenceType==="recurring"?cleanScheduleTime(body.scheduleTime):null;
+    await db.prepare("UPDATE tasks SET title=?,description=?,deadline=?,recurrence_type=?,recurrence_every=?,recurrence_unit=?,schedule_time=?,updated_at=? WHERE id=? AND user_email=?").bind(title,description,deadline,recurrence.recurrenceType,recurrence.recurrenceEvery,recurrence.recurrenceUnit,scheduleTime,updatedAt,id,email).run();
+    return Response.json({task:{...task,title,description,deadline,...recurrence,scheduleTime,updatedAt}});
+  }
   if(task.recurrenceType==="recurring"){
     const period=taskPeriod(task);
     if(status==="completed"){

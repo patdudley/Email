@@ -60,6 +60,7 @@ export const tasks = sqliteTable("tasks", {
   recurrenceType: text("recurrence_type").notNull().default("one_time"),
   recurrenceEvery: integer("recurrence_every"),
   recurrenceUnit: text("recurrence_unit"),
+  scheduleTime: text("schedule_time"),
   status: text("status").notNull().default("active"),
   sourceThreadId: text("source_thread_id"),
   integrationType: text("integration_type"),

@@ -201,7 +201,7 @@ test("protects Gmail authorization and connector credentials", async () => {
 });
 
 test("supports persistent standalone tasks with an interactive research agent", async () => {
-  const [page, css, schema, taskRoute, taskChat, completionRoute, completionRules, migration, integrationMigration] = await Promise.all([
+  const [page, css, schema, taskRoute, taskChat, completionRoute, completionRules, migration, integrationMigration, scheduleMigration] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -211,6 +211,7 @@ test("supports persistent standalone tasks with an interactive research agent", 
     readFile(new URL("../lib/task-completion.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0004_blue_magus.sql", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0005_tense_ezekiel_stane.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0006_cloudy_susan_delgado.sql", import.meta.url), "utf8"),
   ]);
   assert.match(page, /What are you working on\?/);
   assert.match(page, /\{view!=="tasks"&&<form className=\{`ai-search/);
@@ -272,11 +273,24 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(page, /applyTaskTemplate/);
   assert.match(schema, /integrationType/);
   assert.match(integrationMigration, /ADD `integration_type` text/);
+  assert.match(schema, /scheduleTime/);
+  assert.match(scheduleMigration, /ADD `schedule_time` text/);
   assert.match(taskRoute, /cleanIntegration/);
-  assert.match(taskChat, /CONNECTED WORKFLOW/);
-  assert.match(taskChat, /never ask the user to paste or upload payroll data into chat/);
+  assert.match(taskRoute, /cleanScheduleTime/);
+  assert.match(taskRoute, /UPDATE tasks SET title=\?,description=\?,deadline=\?,recurrence_type=\?,recurrence_every=\?,recurrence_unit=\?,schedule_time=\?/);
+  assert.match(taskChat, /NATIVE WORKFLOW/);
+  assert.match(taskChat, /never ask the user to paste payroll data into chat/);
+  assert.match(page, /Runs here inside Resolve/);
+  assert.match(page, /Complete this workflow without leaving Resolve/);
+  assert.match(page, /className="native-workflow"/);
+  assert.match(page, /className="task-settings-panel"/);
+  assert.match(page, /Save settings/);
+  assert.match(page, /Settings run time/);
+  assert.doesNotMatch(page, /Open tool ↗/);
   assert.match(css, /task-templates/);
   assert.match(css, /border-radius:999px/);
   assert.match(css, /task-integration/);
+  assert.match(css, /native-workflow/);
+  assert.match(css, /task-settings-panel/);
   assert.match(css, /task-evidence/);
 });

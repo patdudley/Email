@@ -24,7 +24,7 @@ export async function POST(request:Request) {
     if(!taskId||(!body.start&&!message))return Response.json({error:"Task and message are required"},{status:400});
     if(message.length>5000)return Response.json({error:"Keep messages under 5,000 characters"},{status:400});
     const db=getD1();
-    const task=await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit,integration_type AS integrationType FROM tasks WHERE id=? AND user_email=?`).bind(taskId,user.email.toLowerCase()).first<{id:string;title:string;description:string;deadline:string|null;recurrenceType:string;recurrenceEvery:number|null;recurrenceUnit:string|null;integrationType:string|null}>();
+    const task=await db.prepare(`SELECT id,title,description,deadline,recurrence_type AS recurrenceType,recurrence_every AS recurrenceEvery,recurrence_unit AS recurrenceUnit,schedule_time AS scheduleTime,integration_type AS integrationType FROM tasks WHERE id=? AND user_email=?`).bind(taskId,user.email.toLowerCase()).first<{id:string;title:string;description:string;deadline:string|null;recurrenceType:string;recurrenceEvery:number|null;recurrenceUnit:string|null;scheduleTime:string|null;integrationType:string|null}>();
     if(!task)return Response.json({error:"Task not found"},{status:404});
     const history=await db.prepare(`SELECT role,content FROM task_messages WHERE task_id=? ORDER BY created_at DESC,id DESC LIMIT 24`).bind(taskId).all<{role:string;content:string}>();
     const now=Math.floor(Date.now()/1000);
@@ -32,9 +32,9 @@ export async function POST(request:Request) {
     const conversation=[...(history.results??[])].reverse().map(item=>`${item.role==="assistant"?"Resolve":"User"}: ${item.content}`).join("\n\n");
     const userTurn=body.start?"Begin the task. Decide whether you need a small number of focused follow-up questions before researching and planning.":message;
     const integrationContext=task.integrationType==="online_presence"
-      ? `\n\nCONNECTED WORKFLOW\nLocalLift: https://locallift-audit.patduds.chatgpt.site\nUse LocalLift for verified Google listing facts and live mobile/desktop website checks. Ask for the business name and website when missing. Never invent audit scores or imply that illustrative recommendations are measured facts. Guide the user to run the audit and help interpret the verified output.`
+      ? `\n\nNATIVE WORKFLOW\nThe SEO audit workspace is embedded directly in this Resolve task. Use it for verified Google listing facts and live mobile/desktop website checks. Ask for the business name and website when missing. Never invent audit scores or imply that illustrative recommendations are measured facts. Guide the user through the embedded audit and help interpret its verified output.`
       :task.integrationType==="drybar_payroll"
-        ? `\n\nCONNECTED WORKFLOW\nDrybar Payroll Converter: https://drybar-payroll-converter.patduds.chatgpt.site\nThis workflow requires the manager-corrected Booker payroll PDF and matching timeclock PDF. Files must remain in the user's browser; never ask the user to paste or upload payroll data into chat. The converter must halt on mapping, overtime, or reconciliation issues, and a human must review the Paychex CSV before submission. Ask for shop and pay period when missing.`
+        ? `\n\nNATIVE WORKFLOW\nThe payroll converter is embedded directly in this Resolve task. It requires the manager-corrected Booker payroll PDF and matching timeclock PDF. Files remain in the user's browser; never ask the user to paste payroll data into chat. The converter must halt on mapping, overtime, or reconciliation issues, and a human must review the Paychex CSV before submission. Ask for shop and pay period when missing.`
         :"";
     reservation=await reserveAiAnswer(user);
     const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{Authorization:`Bearer ${requireRuntimeEnv("OPENAI_API_KEY")}`,"Content-Type":"application/json"},body:JSON.stringify({
@@ -44,7 +44,7 @@ export async function POST(request:Request) {
       tools:[{type:"web_search_preview"}],
       max_output_tokens:1600,
       instructions:`Role: You are Resolve, a collaborative task strategist and research agent.\n\nGoal: Help the user execute this task end to end. First identify the smallest missing context that materially changes the plan. Ask at most three focused questions at a time. When enough context exists, research current external facts when useful, synthesize findings, recommend a strategy, and give an actionable execution plan.\n\nSuccess means the user always knows the best next move, important decisions and tradeoffs are explicit, research-backed claims have citations, and blockers are named. Do not pretend to take external actions. Ask before any external write, purchase, or destructive action. Keep the tone direct, practical, and collaborative.`,
-      input:`TASK\nTitle: ${task.title}\nDescription: ${task.description}\nDeadline: ${task.deadline??"None"}\nSchedule: ${task.recurrenceType==="recurring"?`Every ${task.recurrenceEvery} ${task.recurrenceUnit}${task.recurrenceEvery===1?"":"s"}`:"One-time"}${integrationContext}\n\nCONVERSATION SO FAR\n${conversation||"No prior messages."}\n\nCURRENT TURN\n${userTurn}`
+      input:`TASK\nTitle: ${task.title}\nInstructions: ${task.description}\nDeadline: ${task.deadline??"None"}\nSchedule: ${task.recurrenceType==="recurring"?`Every ${task.recurrenceEvery} ${task.recurrenceUnit}${task.recurrenceEvery===1?"":"s"}${task.scheduleTime?` at ${task.scheduleTime}`:""}`:"One-time"}${integrationContext}\n\nCONVERSATION SO FAR\n${conversation||"No prior messages."}\n\nCURRENT TURN\n${userTurn}`
     })});
     const json=await response.json() as OpenAIResponse;
     if(!response.ok)throw new Error(json.error?.message??"Task agent request failed");
