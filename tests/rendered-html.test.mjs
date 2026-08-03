@@ -252,5 +252,12 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(page, /activeTaskCount/);
   assert.match(page, /completedTaskCount/);
   assert.match(page, /taskFilter==="completed"\?taskIsCompleted\(task\):!taskIsCompleted\(task\)/);
+  assert.match(page, /sidebar-view-toggle/);
+  assert.match(page, /view!=="tasks"/);
+  assert.match(page, /Good morning/);
+  assert.match(page, /Here’s your Resolve summary/);
+  assert.match(page, /You’re all caught up/);
+  assert.match(css, /\.app\.tasks-mode\{grid-template-columns:1fr\}/);
+  assert.match(css, /\.ai-welcome/);
   assert.match(css, /task-evidence/);
 });

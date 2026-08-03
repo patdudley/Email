@@ -39,6 +39,11 @@ function taskIsCompleted(task:TaskRecord):boolean{
   return task.status==="completed"||Boolean(task.currentPeriodCompletedAt);
 }
 
+function dayGreeting():string{
+  const hour=new Date().getHours();
+  return hour<12?"Good morning":hour<18?"Good afternoon":"Good evening";
+}
+
 function EmailBodyText({text}:{text:string}){
   const matches=[...text.matchAll(/View image:\s*\((https?:\/\/[^)\s]+)\)/gi)];
   if(!matches.length)return <p>{text.split("\n").map((line,index,lines)=><span key={index}>{line}{index<lines.length-1&&<br/>}</span>)}</p>;
@@ -166,6 +171,9 @@ export default function Home(){
   const activeTaskCount=savedTasks.filter(task=>!taskIsCompleted(task)).length;
   const completedTaskCount=savedTasks.filter(taskIsCompleted).length;
   const visibleTasks=savedTasks.filter(task=>taskFilter==="completed"?taskIsCompleted(task):!taskIsCompleted(task));
+  const briefingMail=mail.filter(message=>unread.includes(message.id)).slice(0,3);
+  const briefingTasks=savedTasks.filter(task=>!taskIsCompleted(task)).slice(0,2);
+  const briefingName=account?.displayName?.trim().split(/\s+/)[0]??"there";
   const recipientQuery=composeTo.split(",").at(-1)?.trim().toLowerCase()??"";
   const visibleRecipientSuggestions=recipientSuggestions.filter(recipient=>!recipientQuery||recipientSuggestionQuery===recipientQuery||recipient.name.toLowerCase().includes(recipientQuery)||recipient.email.includes(recipientQuery)).slice(0,recipientQuery.length>=2?16:8);
   const gmailPageSize=searchMode?25:50;
@@ -521,9 +529,10 @@ export default function Home(){
   }
   function askEmail(e:React.FormEvent){e.preventDefault();void runEmailSearch(search.trim())}
 
-  return <main className="app">
-    <aside className="sidebar">
+  return <main className={`app ${view==="tasks"?"tasks-mode":""}`}>
+    {view!=="tasks"&&<aside className="sidebar">
       <div className="brand"><span>R</span><b>Resolve</b></div>
+      <div className="sidebar-view-toggle" aria-label="Switch workspace"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{activeTaskCount}</span></button></div>
       <button className="compose" onClick={()=>setCompose(true)}>＋ <span>Compose</span></button>
       <nav>
         <button className={view==="mail"&&folder==="Inbox"?"active":""} onClick={()=>chooseFolder("Inbox")}><span>▰</span>Inbox<b>{folder==="Inbox"?unread.length:""}</b></button>
@@ -539,12 +548,11 @@ export default function Home(){
       </nav>
       <button className={`connectors-link ${view==="connectors"?"active":""}`} onClick={()=>{setView("connectors");setOpenId(null);setSelected([])}}><span>⌘</span>Connectors</button>
       <div className={`account ${gmail.connected?"connected":""}`}><span>M</span><div><b>{gmailChecking?"Checking Gmail…":gmail.connected?gmail.email:"Gmail not connected"}</b><small>{gmailChecking?"Loading account":gmail.connected?"Live inbox":"Connect Gmail to begin"}</small></div><i>{gmailChecking?"…":gmail.connected?"✓":"!"}</i></div>
-    </aside>
+    </aside>}
 
     <section className="main">
       <header className="topbar">
-        <div className="mobile-logo">R</div>
-        <div className="tabs"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{activeTaskCount}</span></button></div>
+        <div className={`top-view-toggle ${view==="tasks"?"task-switcher":"mail-mobile-switcher"}`} aria-label="Switch workspace"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{activeTaskCount}</span></button></div>
         <form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail} onBlur={()=>window.setTimeout(()=>setSearchPreviewOpen(false),120)}>
           <span>✦</span>
           <input value={search} onChange={e=>scheduleSearchPreview(e.target.value)} onFocus={()=>search.trim()&&setSearchPreviewOpen(true)} onKeyDown={e=>{if(e.key==="Escape")setSearchPreviewOpen(false)}} placeholder={aiLoading?"Searching your email…":"Ask anything about your email…"} disabled={aiLoading} role="combobox" aria-autocomplete="list" aria-expanded={searchPreviewOpen} aria-controls="email-search-suggestions"/>
@@ -560,6 +568,7 @@ export default function Home(){
         <button className="avatar" aria-label="Open account and billing" onClick={()=>void loadAccount(true)}>{account?.displayName?.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"PD"}</button>
       </header>
       {answer&&<section className={`ai-answer ${searchMode?"search-summary":""}`}><header><span>✦</span><b>{searchMode?`Summary of ${answer.count??0} recent matching email${answer.count===1?"":"s"}`:"Resolve"}</b><button aria-label={searchMode?"Clear email search":"Close answer"} onClick={()=>searchMode?clearEmailSearch():setAnswer(null)}>×</button></header><p>{answer.text}</p>{!searchMode&&answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id);return m?<button key={id} onClick={()=>openMessage(m)}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>:null})}</div>}</section>}
+      {!answer&&<section className="ai-welcome" aria-live="polite"><header><span>✦</span><div><b>{dayGreeting()}, {briefingName}.</b><small>Here’s your Resolve summary</small></div></header>{gmailChecking||tasksLoading?<p>I’m checking your inbox and tasks for anything that needs your attention…</p>:briefingMail.length===0&&activeTaskCount===0?<p>You’re all caught up. There are no unread emails or active tasks right now.</p>:<><p>You have {unread.length} unread email{unread.length===1?"":"s"} in view and {activeTaskCount} active task{activeTaskCount===1?"":"s"}.</p><div>{briefingMail.map(message=><button key={message.id} onClick={()=>openMessage(message)}><span>Mail</span><b>{message.subject}</b><small>{message.sender}</small></button>)}{briefingTasks.map(task=><button key={task.id} onClick={()=>{setView("tasks");setTaskFilter("active");void openTask(task.id)}}><span>Task</span><b>{task.title}</b><small>{task.deadline?`Due ${new Date(`${task.deadline}T00:00:00`).toLocaleDateString(undefined,{month:"short",day:"numeric"})}`:"No deadline"}</small></button>)}</div></>}</section>}
 
       {view==="mail"&&!opened&&<section className="inbox">
         <div className={`mail-tools ${selected.length?"has-selection":""}`}><button className="select-all" aria-label="Select all visible emails" aria-pressed={list.length>0&&list.every(m=>selected.includes(m.id))} onClick={toggleAll}>{list.length>0&&list.every(m=>selected.includes(m.id))?"✓":""}</button>{selected.length?<><strong>{selected.length} selected</strong><button className="bulk-action" onClick={toggleSelectedStar}>☆ Star</button><button className="bulk-action" onClick={toggleSelectedUnread}>○ Read/unread</button>{customFolders.length>0&&!gmail.connected&&<select key={selected.join("-")} className="bulk-move" aria-label="Move selected emails to folder" defaultValue="" onChange={e=>{if(e.target.value)moveSelected(e.target.value)}}><option value="" disabled>Move to folder…</option>{customFolders.map(name=><option key={name} value={name}>{name}</option>)}</select>}<button className="bulk-action" onClick={()=>moveSelected("Archive")}>▣ Archive</button><button className="bulk-action" onClick={()=>moveSelected("Spam")}>! Spam</button><button className="bulk-action danger" onClick={()=>moveSelected("Trash")}>♲ Trash</button></>:<>{searchMode?<><button aria-label="Clear email search" onClick={clearEmailSearch}>×</button><strong className="search-result-label">Results for “{answer?.query??gmailSearchQuery}”</strong></>:<button aria-label="Refresh inbox" onClick={()=>gmail.connected?void loadGmail(folder,gmailPageTokens[gmailPage]??"",gmailPage):notify("Connect Gmail to load your inbox")}>↻</button>}<select className="density-picker" aria-label="Inbox display size" title="Inbox display size" value={mailDensity} onChange={event=>changeMailDensity(event.target.value as MailDensity)}><option value="compact">Compact</option><option value="standard">Standard</option><option value="large">Large</option></select><span/><small>{gmailChecking||mailLoading?"Loading…":list.length?`${gmailPage*gmailPageSize+1}–${gmailPage*gmailPageSize+list.length}`:"0"}</small><button aria-label="Previous email page" disabled={!gmail.connected||gmailPage===0||mailLoading} onClick={()=>changeGmailPage(-1)}>‹</button><button aria-label="Next email page" disabled={!gmail.connected||!gmailNextPageToken||mailLoading} onClick={()=>changeGmailPage(1)}>›</button></>}</div>
