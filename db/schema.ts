@@ -74,3 +74,19 @@ export const taskMessages = sqliteTable("task_messages", {
   sources: text("sources"),
   createdAt: integer("created_at").notNull(),
 }, (table) => [index("idx_task_messages_task_created").on(table.taskId, table.createdAt)]);
+
+export const taskCompletions = sqliteTable("task_completions", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  userEmail: text("user_email").notNull().references(() => users.email, { onDelete: "cascade" }),
+  periodKey: text("period_key").notNull(),
+  evidenceThreadId: text("evidence_thread_id"),
+  evidenceSubject: text("evidence_subject"),
+  evidenceSender: text("evidence_sender"),
+  evidenceDate: text("evidence_date"),
+  evidenceSummary: text("evidence_summary"),
+  completedAt: integer("completed_at").notNull(),
+}, (table) => [
+  uniqueIndex("task_completions_task_period_idx").on(table.taskId, table.periodKey),
+  index("task_completions_user_completed_idx").on(table.userEmail, table.completedAt),
+]);

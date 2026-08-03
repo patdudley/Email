@@ -29,6 +29,13 @@
       "when": 1785550594237,
       "tag": "0003_next_yellow_claw",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785735172607,
+      "tag": "0004_blue_magus",
+      "breakpoints": true
     }
   ]
 }

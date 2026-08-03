@@ -201,11 +201,15 @@ test("protects Gmail authorization and connector credentials", async () => {
 });
 
 test("supports persistent standalone tasks with an interactive research agent", async () => {
-  const [page, schema, taskRoute, taskChat] = await Promise.all([
+  const [page, css, schema, taskRoute, taskChat, completionRoute, completionRules, migration] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/tasks/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/tasks/chat/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/tasks/detect-completions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/task-completion.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0004_blue_magus.sql", import.meta.url), "utf8"),
   ]);
   assert.match(page, /What are you working on\?/);
   assert.match(page, /Create task and start/);
@@ -225,4 +229,19 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(taskChat, /WHERE id=\? AND user_email=\?/);
   assert.match(taskChat, /web_search_preview/);
   assert.match(taskChat, /reserveAiAnswer/);
+  assert.match(schema, /sqliteTable\("task_completions"/);
+  assert.match(migration, /CREATE TABLE `task_completions`/);
+  assert.match(completionRoute, /gmailFetch/);
+  assert.match(completionRoute, /ON CONFLICT\(task_id,period_key\) DO NOTHING/);
+  assert.match(completionRoute, /task\.recurrenceType==="one_time"/);
+  assert.match(completionRules, /isStrongCompletionEvidence/);
+  assert.match(completionRules, /nonCompletionEvidence/);
+  assert.match(completionRules, /positivePaymentEvidence/);
+  assert.match(taskRoute, /recurringOccurrence/);
+  assert.match(taskRoute, /DELETE FROM task_completions/);
+  assert.match(page, /detectTaskCompletions/);
+  assert.match(page, /Completed automatically from email/);
+  assert.match(page, /Paid this month/);
+  assert.match(page, /Reopen this period/);
+  assert.match(css, /task-evidence/);
 });
