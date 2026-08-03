@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `integration_type` text;

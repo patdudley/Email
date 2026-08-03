@@ -62,6 +62,7 @@ export const tasks = sqliteTable("tasks", {
   recurrenceUnit: text("recurrence_unit"),
   status: text("status").notNull().default("active"),
   sourceThreadId: text("source_thread_id"),
+  integrationType: text("integration_type"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => [index("idx_tasks_user_updated").on(table.userEmail, table.updatedAt)]);

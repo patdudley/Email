@@ -201,7 +201,7 @@ test("protects Gmail authorization and connector credentials", async () => {
 });
 
 test("supports persistent standalone tasks with an interactive research agent", async () => {
-  const [page, css, schema, taskRoute, taskChat, completionRoute, completionRules, migration] = await Promise.all([
+  const [page, css, schema, taskRoute, taskChat, completionRoute, completionRules, migration, integrationMigration] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -210,6 +210,7 @@ test("supports persistent standalone tasks with an interactive research agent", 
     readFile(new URL("../app/api/tasks/detect-completions/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../lib/task-completion.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0004_blue_magus.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0005_tense_ezekiel_stane.sql", import.meta.url), "utf8"),
   ]);
   assert.match(page, /What are you working on\?/);
   assert.match(page, /Create task and start/);
@@ -259,5 +260,18 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(page, /You’re all caught up/);
   assert.match(css, /\.app\.tasks-mode\{grid-template-columns:1fr\}/);
   assert.match(css, /\.ai-welcome/);
+  assert.match(page, /Start from a connected workflow/);
+  assert.match(page, /Online Presence/);
+  assert.match(page, /Drybar Payroll/);
+  assert.match(page, /locallift-audit\.patduds\.chatgpt\.site/);
+  assert.match(page, /drybar-payroll-converter\.patduds\.chatgpt\.site/);
+  assert.match(page, /applyTaskTemplate/);
+  assert.match(schema, /integrationType/);
+  assert.match(integrationMigration, /ADD `integration_type` text/);
+  assert.match(taskRoute, /cleanIntegration/);
+  assert.match(taskChat, /CONNECTED WORKFLOW/);
+  assert.match(taskChat, /never ask the user to paste or upload payroll data into chat/);
+  assert.match(css, /task-templates/);
+  assert.match(css, /task-integration/);
   assert.match(css, /task-evidence/);
 });
