@@ -260,9 +260,10 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(page, /You’re all caught up/);
   assert.match(css, /\.app\.tasks-mode\{grid-template-columns:1fr\}/);
   assert.match(css, /\.ai-welcome/);
-  assert.match(page, /Start from a connected workflow/);
-  assert.match(page, /Online Presence/);
-  assert.match(page, /Drybar Payroll/);
+  assert.match(page, /Quick starts/);
+  assert.match(page, /SEO optimization/);
+  assert.match(page, /Payroll converter/);
+  assert.match(page, /task-template-help/);
   assert.match(page, /locallift-audit\.patduds\.chatgpt\.site/);
   assert.match(page, /drybar-payroll-converter\.patduds\.chatgpt\.site/);
   assert.match(page, /applyTaskTemplate/);
@@ -272,6 +273,7 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(taskChat, /CONNECTED WORKFLOW/);
   assert.match(taskChat, /never ask the user to paste or upload payroll data into chat/);
   assert.match(css, /task-templates/);
+  assert.match(css, /border-radius:999px/);
   assert.match(css, /task-integration/);
   assert.match(css, /task-evidence/);
 });
