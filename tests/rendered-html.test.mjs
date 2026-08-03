@@ -248,5 +248,9 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(page, /Completed automatically from email/);
   assert.match(page, /Paid this month/);
   assert.match(page, /Reopen this period/);
+  assert.match(page, /function taskIsCompleted/);
+  assert.match(page, /activeTaskCount/);
+  assert.match(page, /completedTaskCount/);
+  assert.match(page, /taskFilter==="completed"\?taskIsCompleted\(task\):!taskIsCompleted\(task\)/);
   assert.match(css, /task-evidence/);
 });

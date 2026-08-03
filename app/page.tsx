@@ -35,6 +35,10 @@ function taskCompletionLabel(task:TaskRecord):string{
   return "Completed today";
 }
 
+function taskIsCompleted(task:TaskRecord):boolean{
+  return task.status==="completed"||Boolean(task.currentPeriodCompletedAt);
+}
+
 function EmailBodyText({text}:{text:string}){
   const matches=[...text.matchAll(/View image:\s*\((https?:\/\/[^)\s]+)\)/gi)];
   if(!matches.length)return <p>{text.split("\n").map((line,index,lines)=><span key={index}>{line}{index<lines.length-1&&<br/>}</span>)}</p>;
@@ -159,7 +163,9 @@ export default function Home(){
   },[folder,locations,customFolders,starred,gmail.connected,mail]);
   const opened=mail.find(m=>m.id===openId);
   const activeTask=savedTasks.find(task=>task.id===activeTaskId)??null;
-  const visibleTasks=savedTasks.filter(task=>task.status===taskFilter);
+  const activeTaskCount=savedTasks.filter(task=>!taskIsCompleted(task)).length;
+  const completedTaskCount=savedTasks.filter(taskIsCompleted).length;
+  const visibleTasks=savedTasks.filter(task=>taskFilter==="completed"?taskIsCompleted(task):!taskIsCompleted(task));
   const recipientQuery=composeTo.split(",").at(-1)?.trim().toLowerCase()??"";
   const visibleRecipientSuggestions=recipientSuggestions.filter(recipient=>!recipientQuery||recipientSuggestionQuery===recipientQuery||recipient.name.toLowerCase().includes(recipientQuery)||recipient.email.includes(recipientQuery)).slice(0,recipientQuery.length>=2?16:8);
   const gmailPageSize=searchMode?25:50;
@@ -371,7 +377,7 @@ export default function Home(){
     const json=await response.json() as {error?:string;updatedAt?:number;recurringOccurrence?:boolean};
     if(!response.ok){notify(json.error??"Could not update task");return}
     await loadTasks();setActiveTaskId(task.id);
-    if(!json.recurringOccurrence)setTaskFilter(status);
+    setTaskFilter(status);
     notify(json.recurringOccurrence?(status==="completed"?"Current occurrence completed":"Current occurrence reopened"):(status==="completed"?"Task completed":"Task reopened"));
   }
 
@@ -538,7 +544,7 @@ export default function Home(){
     <section className="main">
       <header className="topbar">
         <div className="mobile-logo">R</div>
-        <div className="tabs"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{savedTasks.length}</span></button></div>
+        <div className="tabs"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{activeTaskCount}</span></button></div>
         <form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail} onBlur={()=>window.setTimeout(()=>setSearchPreviewOpen(false),120)}>
           <span>✦</span>
           <input value={search} onChange={e=>scheduleSearchPreview(e.target.value)} onFocus={()=>search.trim()&&setSearchPreviewOpen(true)} onKeyDown={e=>{if(e.key==="Escape")setSearchPreviewOpen(false)}} placeholder={aiLoading?"Searching your email…":"Ask anything about your email…"} disabled={aiLoading} role="combobox" aria-autocomplete="list" aria-expanded={searchPreviewOpen} aria-controls="email-search-suggestions"/>
@@ -573,7 +579,7 @@ export default function Home(){
 
       {view==="tasks"&&<section className="tasks task-workspace">
         <div className="task-list"><header><h1>Tasks</h1><button aria-label="Create new task" onClick={()=>{setCreatingTask(true);setActiveTaskId(null);setTaskMessages([])}}>＋</button></header>
-          <div className="task-list-tabs"><button className={taskFilter==="active"?"active":""} onClick={()=>{setTaskFilter("active");setCreatingTask(false);setActiveTaskId(null)}}>Active <span>{savedTasks.filter(task=>task.status==="active").length}</span></button><button className={taskFilter==="completed"?"active":""} onClick={()=>{setTaskFilter("completed");setCreatingTask(false);setActiveTaskId(null)}}>Completed <span>{savedTasks.filter(task=>task.status==="completed").length}</span></button></div>
+          <div className="task-list-tabs"><button className={taskFilter==="active"?"active":""} onClick={()=>{setTaskFilter("active");setCreatingTask(false);setActiveTaskId(null)}}>Active <span>{activeTaskCount}</span></button><button className={taskFilter==="completed"?"active":""} onClick={()=>{setTaskFilter("completed");setCreatingTask(false);setActiveTaskId(null)}}>Completed <span>{completedTaskCount}</span></button></div>
           {tasksLoading&&!savedTasks.length?<div className="task-list-loading">Loading tasks…</div>:visibleTasks.map(task=>{const currentComplete=task.status==="completed"||Boolean(task.currentPeriodCompletedAt);return <article key={task.id} className={`${activeTaskId===task.id?"active ":""}${task.status==="completed"?"completed ":""}${task.currentPeriodCompletedAt?"period-complete":""}`} onClick={()=>void openTask(task.id)}><span className={`task-status-dot ${currentComplete?"complete":""}`}>{currentComplete?"✓":""}</span><div><h2>{task.title}</h2><p>{task.description}</p><footer><span>{task.currentPeriodCompletedAt?taskCompletionLabel(task):(task.recurrenceType==="recurring"?`Every ${task.recurrenceEvery} ${task.recurrenceUnit}${task.recurrenceEvery===1?"":"s"}`:"One-time")}</span>{task.deadline&&<time>{new Date(`${task.deadline}T00:00:00`).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</time>}</footer></div></article>})}
           {!tasksLoading&&!visibleTasks.length&&<div className="task-list-empty">{taskFilter==="completed"?"No completed tasks yet":"No active tasks"}</div>}
         </div>
