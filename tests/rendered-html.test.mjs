@@ -213,6 +213,9 @@ test("supports persistent standalone tasks with an interactive research agent", 
     readFile(new URL("../drizzle/0005_tense_ezekiel_stane.sql", import.meta.url), "utf8"),
   ]);
   assert.match(page, /What are you working on\?/);
+  assert.match(page, /\{view!=="tasks"&&<form className=\{`ai-search/);
+  assert.match(page, /\{view!=="tasks"&&!answer&&<section className="ai-welcome"/);
+  assert.match(page, /\{view!=="tasks"&&<aside className="sidebar"/);
   assert.match(page, /Create task and start/);
   assert.match(page, /One-time/);
   assert.match(page, /Recurring/);
