@@ -214,7 +214,8 @@ test("supports persistent standalone tasks with an interactive research agent", 
     readFile(new URL("../drizzle/0006_cloudy_susan_delgado.sql", import.meta.url), "utf8"),
   ]);
   assert.match(page, /What are you working on\?/);
-  assert.match(page, /\{view!=="tasks"&&<form className=\{`ai-search/);
+  assert.match(page, /<form className=\{`ai-search/);
+  assert.doesNotMatch(page, /view!=="tasks"&&<form className=\{`ai-search/);
   assert.match(page, /\{view!=="tasks"&&!answer&&<section className="ai-welcome"/);
   assert.match(page, /\{view!=="tasks"&&<aside className="sidebar"/);
   assert.match(page, /Create task and start/);
@@ -263,6 +264,7 @@ test("supports persistent standalone tasks with an interactive research agent", 
   assert.match(page, /Here’s your Resolve summary/);
   assert.match(page, /You’re all caught up/);
   assert.match(css, /\.app\.tasks-mode\{grid-template-columns:1fr\}/);
+  assert.match(css, /\.tasks-mode \.ai-search\{width:min\(720px,55vw\)\}/);
   assert.match(css, /\.ai-welcome/);
   assert.match(page, /Quick starts/);
   assert.match(page, /SEO optimization/);

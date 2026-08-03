@@ -594,7 +594,7 @@ export default function Home(){
     <section className="main">
       <header className="topbar">
         <div className={`top-view-toggle ${view==="tasks"?"task-switcher":"mail-mobile-switcher"}`} aria-label="Switch workspace"><button className={view==="mail"?"active":""} onClick={()=>{setView("mail");setOpenId(null)}}>Mail</button><button className={view==="tasks"?"active":""} onClick={()=>{setView("tasks");setOpenId(null)}}>Tasks <span>{activeTaskCount}</span></button></div>
-        {view!=="tasks"&&<form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail} onBlur={()=>window.setTimeout(()=>setSearchPreviewOpen(false),120)}>
+        <form className={`ai-search ${aiLoading?"loading":""}`} onSubmit={askEmail} onBlur={()=>window.setTimeout(()=>setSearchPreviewOpen(false),120)}>
           <span>✦</span>
           <input value={search} onChange={e=>scheduleSearchPreview(e.target.value)} onFocus={()=>search.trim()&&setSearchPreviewOpen(true)} onKeyDown={e=>{if(e.key==="Escape")setSearchPreviewOpen(false)}} placeholder={aiLoading?"Searching your email…":"Ask anything about your email…"} disabled={aiLoading} role="combobox" aria-autocomplete="list" aria-expanded={searchPreviewOpen} aria-controls="email-search-suggestions"/>
           <button aria-label="Ask Resolve" disabled={aiLoading}>{aiLoading?"…":"↑"}</button>
@@ -605,7 +605,7 @@ export default function Home(){
             {!searchPreviewLoading&&!searchPreview.contacts.length&&!searchPreview.emails.length&&<p>No instant matches yet. Search all email below.</p>}
             <button type="button" className="search-all-email" onMouseDown={e=>e.preventDefault()} onClick={()=>void runEmailSearch(search.trim())}><span>⌕</span><strong>Search all email for “{search.trim()}”</strong><kbd>Enter</kbd></button>
           </div>}
-        </form>}
+        </form>
         <button className="avatar" aria-label="Open account and billing" onClick={()=>void loadAccount(true)}>{account?.displayName?.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()||"PD"}</button>
       </header>
       {view!=="tasks"&&answer&&<section className={`ai-answer ${searchMode?"search-summary":""}`}><header><span>✦</span><b>{searchMode?`Summary of ${answer.count??0} recent matching email${answer.count===1?"":"s"}`:"Resolve"}</b><button aria-label={searchMode?"Clear email search":"Close answer"} onClick={()=>searchMode?clearEmailSearch():setAnswer(null)}>×</button></header><p>{answer.text}</p>{!searchMode&&answer.ids.length>0&&<div>{answer.ids.map(id=>{const m=mail.find(item=>item.id===id);return m?<button key={id} onClick={()=>openMessage(m)}><span className={`initials tiny ${m.tone}`}>{m.initials}</span><span><b>{m.sender}</b><small>{m.subject}</small></span><i>Open →</i></button>:null})}</div>}</section>}
